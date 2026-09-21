@@ -43,8 +43,8 @@
     --edge-lt: #A8839A;
     --muted:   #5E3550;
     --sea:     #7E3462;
-    --focus:   #7D4A00;   /* the field being typed into   */
-    --focusbg: #FFF3DC;
+    --focus:   #8A1F4E;   /* the field being typed into   */
+    --focusbg: #FDE7F1;
     --tint:    #F7E9F1;   /* soft fill that follows the theme */
 
     /* The Submit button gets its own accent rather than the theme's primary,
@@ -197,7 +197,7 @@
     flex: 3 1 clamp(320px, 46%, 620px);
     min-width: 0;
     border: 2px solid var(--edge-lt); border-radius: 17px;
-    box-shadow: 0 1px 3px rgba(40, 25, 55, .055);
+    box-shadow: 0 1px 3px rgba(74, 33, 64, .06);
     background: #FFFAFC; padding: .55rem .6rem .6rem;
   }
   .town-top { display: flex; gap: .4rem; align-items: center; min-width: 0; }
@@ -252,7 +252,7 @@
   .field.small { min-height: 46px; font-size: 1.02rem; border-color: var(--edge-lt); }
   .field.active {
     border-color: var(--focus); background: var(--focusbg);
-    box-shadow: 0 0 0 4px rgba(168,106,0,.3);
+    box-shadow: 0 0 0 4px rgba(138,31,78,.26);
   }
   /* Shown in capitals, stored in proper case.
 
@@ -280,7 +280,7 @@
     letter-spacing: .015em;
   }
   .k[data-ch] { text-transform: uppercase; }
-  .field .placeholder { color: #5C628A; text-transform: none; }
+  .field .placeholder { color: #7A6070; text-transform: none; }
   .caret {
     display: inline-block; width: 3px; height: 1.3em;
     background: var(--focus); margin-left: 2px;
@@ -336,7 +336,7 @@
     position: fixed; z-index: 55; display: none;
     background: var(--panel);
     border: 2px solid var(--focus); border-radius: 16px;
-    box-shadow: 0 10px 28px rgba(16,23,58,.28);
+    box-shadow: 0 10px 28px rgba(74,33,64,.26);
     overflow-y: auto; max-height: 42vh;
   }
   #drop.show { display: block; }
@@ -344,7 +344,7 @@
     display: flex; align-items: center; justify-content: space-between;
     gap: .8rem; width: 100%; text-align: left;
     padding: .62rem 1rem; font: inherit; font-size: 1.05rem;
-    background: none; border: none; border-bottom: 1px solid #D9DCE8;
+    background: none; border: none; border-bottom: 1px solid #E9D6E1;
     color: var(--ink); cursor: pointer;
   }
   .opt:last-child { border-bottom: none; }
@@ -364,7 +364,7 @@
   .opt:active, .opt.sel { background: var(--focus); color: #fff; }
   .opt.looking { color: var(--muted); font-size: .9rem; font-style: italic;
                  cursor: default; }
-  .opt .mi.lit { background: #E4E6F2; color: var(--muted); }
+  .opt .mi.lit { background: #F0E2EA; color: var(--muted); }
   .opt.sel .mi, .opt:active .mi { background: rgba(255,255,255,.28); color: #fff; }
   .opt:active .mi { background: rgba(255,255,255,.28); color: #fff; }
   .opt .mi {
@@ -412,7 +412,7 @@
     background: var(--key); border: 2px solid var(--keyedge);
     border-radius: 12px; height: 50px;
     font-size: 1.15rem; font-family: inherit; font-weight: 500; color: var(--keyink);
-    cursor: pointer; box-shadow: 0 2px 0 rgba(16,23,58,.25);
+    cursor: pointer; box-shadow: 0 2px 0 rgba(74,33,64,.22);
   }
   /* Press state is driven from JS rather than :active. Two reasons: :active
        on iOS only fires reliably with a touch listener registered, and
@@ -464,7 +464,7 @@
   }
 
   .jswarn {
-    background: #FDF4E0; border: 2px solid #A86A00; color: #4A2140;
+    background: #FDE7F1; border: 2px solid #A8215C; color: #4A2140;
     border-radius: 16px; padding: 1rem 1.2rem; margin: 1.2rem;
     font-size: 1rem; line-height: 1.45;
   }
@@ -597,7 +597,7 @@
             font-variant-numeric:tabular-nums; }
   .tot .l { font-size:.78rem; color:var(--muted); line-height:1.3; margin-top:.25rem; }
   .tot .l b { display:block; color:var(--indigo); font-weight:600; }
-  .note { background:#FDF4E0; border:1px solid #C79415; border-radius:8px;
+  .note { background:#FDE7F1; border:1px solid #A8215C; border-radius:8px;
           padding:.75rem 1rem; font-size:.88rem; margin-bottom:1.3rem; }
   .visit { background:#fff; border:1px solid var(--edge); border-radius:10px;
            padding:.7rem .9rem; margin-bottom:.65rem; }
@@ -612,14 +612,14 @@
        align-items:center; border-left:4px solid #C0A3B2; background:#FAF3F7;
        border-radius:6px; padding:.45rem .7rem; margin-bottom:.32rem;
        font-size:.9rem; }
-  .r.usable { border-left-color:#0F7268; background:#E9F3F0; }
-  .r.review { border-left-color:#C79415; background:#FDF4E0; }
+  .r.usable { border-left-color:#9C7C8E; background:#FBF2F7; }
+  .r.review { border-left-color:#A8215C; background:#FDE7F1; }
   .r .what { flex:1 1 14rem; min-width:0; }
   .r .raw { color:var(--muted); font-size:.79rem; }
   .r .pill { font-size:.74rem; padding:.15rem .5rem; border-radius:20px;
-             background:rgba(27,35,80,.09); white-space:nowrap;
+             background:rgba(126,52,98,.10); white-space:nowrap;
              font-variant-numeric:tabular-nums; }
-  .r .pill.yes { background:#D8E7E3; color:#0B5A52; }
+  .r .pill.yes { background:#F7DEEA; color:#7E1F4A; }
   .vchev { color:var(--accent); font-size:.8rem; display:inline-block;
            transition:transform .12s ease; }
   .vhead[aria-expanded="true"] .vchev { transform:rotate(90deg); }
@@ -640,10 +640,10 @@
   .vdel { margin-top:.6rem; }
   .delbtn {
     font:inherit; font-size:.82rem; font-weight:600; cursor:pointer;
-    color:#8C1D1D; background:#fff; border:2px solid #8C1D1D;
+    color:#7E1F4A; background:#fff; border:2px solid #7E1F4A;
     border-radius:8px; padding:.35rem .8rem;
   }
-  .delbtn:active { background:#8C1D1D; color:#fff; }
+  .delbtn:active { background:#7E1F4A; color:#fff; }
   .delbtn:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
   .rempty { text-align:center; color:var(--muted); padding:3rem 1rem; }
 
