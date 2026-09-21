@@ -444,9 +444,37 @@
   }
   #thanks.show { display: flex; }
   #thanks h1 { font-family: var(--serif); font-size: 3.1rem;
-               margin: 0 0 .5rem; font-weight: 600; letter-spacing: .01em; }
+               margin: 0 0 .5rem; font-weight: 600; letter-spacing: .01em;
+               display: flex; align-items: center; justify-content: center;
+               gap: .3em; }
   #thanks p { font-family: var(--serif); font-size: 1.32rem;
               opacity: .92; margin: 0; }
+  /* Drawn rather than typed. An emoji heart would arrive in whatever red the
+     platform's font happens to use, and the point of the last two hours was
+     that everything belongs to one palette. This one is ours, and it renders
+     the same on every device. Soft pink because the screen behind it is deep
+     wine: the ruby would have sat at 1.9:1 and all but vanished. */
+  #thanks .heart {
+    /* Sized and offset in em so it tracks the heading at any size. The nudge
+       is measured, not guessed: flex centring lines the heart up with the
+       middle of the whole line box, which includes the descender of the "y",
+       so it sits low against the capitals. 0em lifts it onto the
+       optical centre between the cap height and the baseline. */
+    width: .70em; height: auto; flex: none;
+    position: relative; top: -.05em;
+    fill: #F09BC0; transform-origin: center;
+  }
+  /* Two unhurried beats, then still. It is a thank-you, not a notification. */
+  #thanks.show .heart { animation: beat 1.15s ease-in-out 2 both; }
+  @keyframes beat {
+    0%, 100% { transform: scale(1); }
+    18%      { transform: scale(1.14); }
+    32%      { transform: scale(1); }
+    46%      { transform: scale(1.09); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #thanks.show .heart { animation: none; }
+  }
 
 
   /* Short viewports. iPad landscape is 768px tall, and five keyboard rows
@@ -760,7 +788,11 @@
 </div>
 
 <div id="thanks">
-  <h1>Thank you</h1>
+  <h1>Thank you
+    <svg class="heart" viewBox="0 0 32 29" aria-hidden="true" focusable="false">
+      <path d="M16 28.3 3.9 16.2A8.1 8.1 0 1 1 16 5.5 8.1 8.1 0 1 1 28.1 16.2Z"/>
+    </svg>
+  </h1>
   <p>Enjoy the museum.</p>
 </div>
 
