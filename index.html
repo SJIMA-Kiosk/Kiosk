@@ -1,0 +1,2483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>SJIMA Sign-In</title>
+<!-- Launched from the Home Screen this runs standalone, no Safari chrome.
+     Also keeps the data: Safari evicts localStorage after 7 idle days,
+     standalone web apps are exempt. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<!-- black-translucent lets the page run under the status bar instead of
+     below a reserved strip. The clock and battery still draw (no web app
+     can hide them) but land on the masthead in white. The header pays the
+     space back with safe-area padding, below. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SJIMA Sign-In">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#4A2140">
+<style>
+  /* High-contrast palette. Every text/background pair meets WCAG AA at these
+       sizes, most meet AAA. Heavy borders are deliberate; hairlines don't read
+       at arm's length. */
+  /* Theme tokens.
+
+       Four palettes. Body text meets AAA (7:1) in all four, nothing falls below
+       AA. The blue is built on U.S. Web Design System tokens.
+
+       The keyboard is deliberately not themed. Keys stay near-white with
+       near-black text in every palette; legibility beats colour coordination. */
+  :root {
+    /* Camas, after the purple lily on the island prairies, and a cousin of
+       the purple in the wordmark. Warmer and lower-contrast in feel than the
+       federal navy, without giving up any of the measured contrast: body text
+       still clears AAA and no pairing falls below AA. */
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+             Georgia, serif;
+    --ink:     #4A2140;   /* header, body text            */
+    --primary: #7E3462;   /* headings, secondary buttons  */
+    --accent:  #8E3A6C;   /* small labels, links          */
+    --paper:   #FCF4F8;   /* blush, not grey              */
+    --panel:   #FFFFFF;
+    --edge:    #8C6E80;
+    --edge-lt: #A8839A;
+    --muted:   #5E3550;
+    --sea:     #7E3462;
+    --focus:   #7D4A00;   /* the field being typed into   */
+    --focusbg: #FFF3DC;
+    --tint:    #F7E9F1;   /* soft fill that follows the theme */
+
+    /* The Submit button gets its own accent rather than the theme's primary,
+       so it reads as the one thing to press. Gold against navy is the classic
+       complement; it holds up against the green and brick palettes too. */
+    /* Submit and Add are the same ruby on purpose. One family reads as a
+       palette; three warm hues read as a collision. They are told apart by
+       weight rather than by colour: Submit is filled solid with a white
+       label, Add is a dashed outline on a pale rose. That is also the right
+       hierarchy, since Submit is the one thing everyone must press. */
+    --go:      #A8215C;   /* Submit button face           */
+    --go-ink:  #FFFFFF;   /* its label                    */
+    --go-edge: #7C1743;   /* the lip it sits on           */
+
+    /* Add another town gets a ruby of its own rather than the theme's own
+       colour. It is the only other thing on the page worth pressing, and a
+       red against the plum reads as an invitation rather than a warning at
+       this weight. */
+    --add:     #A8215C;
+    --add-bg:  #FBEEF4;
+
+    /* constant across themes */
+    --key:     #FFFFFF;
+    --keyedge: #8B7684;
+    --keyface: #EDE4EA;
+    --keyink:  #2E1F29;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; overflow-x: hidden;
+    background: var(--paper); color: var(--ink);
+    font-family: "Inter", "Segoe UI", "DejaVu Sans", system-ui, sans-serif;
+    font-size: 20px;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;      /* no long-press copy/define menu   */
+    -webkit-text-size-adjust: 100%;   /* iOS must not resize our type     */
+    touch-action: manipulation;       /* no double-tap zoom               */
+    overscroll-behavior: none;        /* no rubber-band bounce            */
+  }
+
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  /* ---------- masthead ---------- */
+  header {
+    background: var(--ink); color: #fff; flex: none;
+    padding: .55rem 1.3rem;
+    /* iOS standalone starts the page under the status bar, so add the inset
+           iOS reports. Elsewhere env() is 0 and this is the plain .55rem. */
+    padding-top: calc(.55rem + env(safe-area-inset-top, 0px));
+    padding-left: calc(1.3rem + env(safe-area-inset-left, 0px));
+    padding-right: calc(1.3rem + env(safe-area-inset-right, 0px));
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  /* Traced outline filled with currentColor, so the mark picks up the header
+     colour in every theme instead of shipping four images. */
+  .logo { height: 40px; width: auto; display: block; color: #fff; flex: none; }
+  .headtools { display: flex; align-items: stretch; gap: .5rem; }
+  .refresh {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: .05rem;
+    background: none; color: #fff; font-family: inherit; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.45); border-radius: 12px;
+    padding: .3rem .7rem;
+  }
+  .refresh:active { background: rgba(255,255,255,.18); }
+  .refresh .ico { font-size: 1rem; line-height: 1; }
+  .refresh .lbl { font-size: .7rem; font-weight: 600; letter-spacing: .01em; }
+
+  .peek {
+    display: flex; flex-direction: column; align-items: flex-end; gap: .1rem;
+    color: #fff; text-decoration: none;
+    border: 1px solid rgba(255,255,255,.45); border-radius: 12px;
+    padding: .3rem .7rem;
+  }
+  .peek:active { background: rgba(255,255,255,.18); }
+  .peek-date { font-size: .82rem; opacity: .9; }
+  .peek-cta  { font-size: .74rem; font-weight: 600; letter-spacing: .01em; }
+
+  /* ---------- form area ---------- */
+  main {
+    flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0;
+    padding: .65rem 1.3rem .8rem;
+  }
+
+  .identity { display: flex; gap: 1rem; margin-bottom: .6rem;
+               align-items: end; }
+  .identity > div { flex: 1 1 0; min-width: 0; }
+  .identity .memcell { flex: 0 0 15rem; }
+  .memberbtn {
+    display: flex; align-items: center; gap: .6rem; width: 100%;
+    min-height: 46px; padding: 0 .7rem;
+    background: var(--panel); border: 2px solid var(--edge);
+    border-radius: 14px; font-family: inherit; font-size: 1.08rem;
+    font-weight: 600; color: var(--ink); cursor: pointer; text-align: left;
+  }
+  .memberbtn .box {
+    flex: none; width: 1.5rem; height: 1.5rem; border-radius: 8px;
+    border: 2px solid var(--edge); background: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .memberbtn[aria-pressed="true"] {
+    border-color: var(--sea); background: var(--tint);
+  }
+  .memberbtn[aria-pressed="true"] .box {
+    background: var(--sea); border-color: var(--sea);
+  }
+  .memberbtn[aria-pressed="true"] .box::after {
+    content: ""; width: .45rem; height: .8rem; margin-top: -.18rem;
+    border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg);
+  }
+  .quiet-label {
+    display: block; font-size: .98rem; color: var(--muted);
+    margin-bottom: .25rem; font-weight: 500;
+  }
+
+  /* A book serif for the questions. Every face here ships with iOS or
+     Windows, so nothing is fetched and nothing falls back to Times. It reads
+     as a museum label rather than as a form field, which is most of what
+     makes the page feel less clerical. */
+  h2 {
+    font-family: var(--serif);
+    font-size: 1.44rem; font-weight: 600; margin: 0 0 .12rem;
+    letter-spacing: 0;
+  }
+
+  /* Town blocks per row, with no media query. The percentage in the clamp is
+       what caps it at two:
+
+         46% x 2 = 92%   two fit
+         46% x 3 = 138%  three never do
+
+       Below ~700px the 320px floor takes over and one fits. Above ~2700px the
+       620px ceiling takes over and three or more can appear. Tracks are
+       minmax(0,1fr)-safe, so a long place name ellipsises instead of widening
+       the page. */
+  /* Flex rather than grid: the trailing button must not be as wide as a town
+       block while sharing a row with one.
+
+         1 town  + button   one row; the town takes ~2x the width (grow 3 vs 1)
+         2 towns + button   46% x 2 leaves no room, so the button wraps to its
+                            own row and the towns split the row evenly
+
+       Same clamp behaviour as above: one per row below ~700px, three or more
+       above ~2700px. */
+  .towngrid { display: flex; flex-wrap: wrap; gap: .6rem; align-items: start; }
+
+  .town {
+    flex: 3 1 clamp(320px, 46%, 620px);
+    min-width: 0;
+    border: 2px solid var(--edge-lt); border-radius: 17px;
+    box-shadow: 0 1px 3px rgba(40, 25, 55, .055);
+    background: #FFFAFC; padding: .55rem .6rem .6rem;
+  }
+  .town-top { display: flex; gap: .4rem; align-items: center; min-width: 0; }
+  .town-top .field { flex: 1 1 auto; min-width: 0; }
+
+  .nums { display: flex; gap: .45rem; margin-top: .38rem; min-width: 0;
+          align-items: end; }
+  .stepper { display: flex; align-items: stretch; gap: .25rem; min-width: 0; }
+  .stepper .field { flex: 1 1 0; min-width: 0; }
+  .step {
+    flex: 0 0 2.5rem; min-width: 0;
+    background: var(--add-bg); color: var(--go);
+    border: 2px solid var(--go); border-radius: 14px;
+    font-family: inherit; font-size: 1.5rem; font-weight: 700; line-height: 1;
+    cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* Hidden until the number beside them is being edited. Opacity rather than
+     display or visibility toggling, so the buttons keep their boxes and the
+     row never reflows: the numbers sit in exactly the same place either way.
+     While hidden they still take taps, and that first tap focuses the number
+     instead of changing it, so the footprint reads as "tap here to adjust". */
+  .step { opacity: 0; transition: opacity .13s ease; }
+  .step.on { opacity: 1; }
+  .step:active { background: var(--go); color: #fff; border-color: var(--go); }
+  .stepper.small .step { flex: 0 0 2.4rem; font-size: 1.35rem; }
+  .numcell {
+    flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; gap: .2rem;
+  }
+  /* These explain what each box wants, and the visitors reading them are
+     old. Sized as large as the page can carry: this value is for tall
+     screens, and the compact block below steps it down only as far as a
+     short landscape iPad actually requires. */
+  .numcell > span {
+    font-size: .98rem; line-height: 1.22; color: var(--muted);
+    font-weight: 600; text-align: center;
+  }
+
+  .field {
+    background: var(--panel);
+    border: 2px solid var(--edge);
+    border-radius: 14px;
+    min-height: 56px; padding: 0 .7rem;
+    display: flex; align-items: center;
+    font-size: 1.1rem; color: var(--ink);
+    overflow: hidden; white-space: nowrap;
+  }
+  .field.num { justify-content: center; padding: 0 .2rem; min-height: 50px;
+               font-variant-numeric: tabular-nums; font-weight: 700;
+               font-size: 1.2rem; }
+  .field.small { min-height: 46px; font-size: 1.02rem; border-color: var(--edge-lt); }
+  .field.active {
+    border-color: var(--focus); background: var(--focusbg);
+    box-shadow: 0 0 0 4px rgba(168,106,0,.3);
+  }
+  /* Shown in capitals, stored in proper case.
+
+       Capitals read better at arm's length and remove any question of shift.
+       Doing it in CSS keeps the record as "Friday Harbor, Washington" rather
+       than "FRIDAY HARBOR, WASHINGTON", so what goes into the report and into
+       LGL is clean. Email is left alone; addresses get handed to other
+       systems. */
+  /* Small caps rather than full capitals. The capital a visitor's name or town
+     already starts with stays full height and everything after it becomes a
+     smaller capital, so there is still no lower case to think about and no
+     shift key to find, but the result reads as typography instead of as
+     shouting. The stored value keeps its real case either way. Safari has
+     supported this since iOS 9.3 and synthesises the small capitals when the
+     font has none of its own. */
+  .field[data-key="name"], .field[data-key$=".place"] {
+    font-variant-caps: small-caps;
+    letter-spacing: .015em;
+  }
+  /* An address has no first word to enlarge, so it gets the small capital at
+     every position instead: same face, same size throughout, no initial.
+     Safari has supported all-small-caps since iOS 9.3 as well. */
+  .field[data-key="email"] {
+    font-variant-caps: all-small-caps;
+    letter-spacing: .015em;
+  }
+  .k[data-ch] { text-transform: uppercase; }
+  .field .placeholder { color: #5C628A; text-transform: none; }
+  .caret {
+    display: inline-block; width: 3px; height: 1.3em;
+    background: var(--focus); margin-left: 2px;
+    animation: blink 1.1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+
+  .drop {
+    flex: none; font-family: inherit; cursor: pointer;
+    border: 2px solid transparent; border-radius: 14px;
+    background: none; color: var(--muted);
+    font-size: 1.5rem; line-height: 1; padding: .3rem .45rem;
+  }
+  .drop:active { color: #A02216; background: var(--tint); }
+
+  /* Narrow on purpose while it shares a row: the town beside it is where the
+     work happens, so the button asks for about a seventh of the width and
+     lets the town have the rest. It stops shrinking at 9.5rem, which is still
+     a comfortable target, and below that the flex basis can no longer be met
+     and it wraps to its own line exactly as before. */
+  /* Narrow on purpose while it shares a row. The town beside it is where the
+     work happens, so the button asks for about an eighth of the width and
+     leaves the rest to the town.
+
+     The label wraps rather than holding the button open: with the words on
+     one line the narrowest this could ever be was the width of that line.
+     Wrapping drops the floor to the longest single word, which is what lets
+     the eighth actually be reached. Note 1rem is 20px here, not 16px. */
+  .addbtn {
+    flex: 1 1 12rem; min-width: 0; max-width: 30rem;
+    align-self: stretch;
+    font-family: inherit; cursor: pointer; border-radius: 17px;
+    border: 2px dashed var(--add); background: var(--add-bg); color: var(--add);
+    font-weight: 700; font-size: 1.04rem; padding: .8rem .7rem;
+    display: flex; flex-wrap: wrap; align-items: center;
+    align-content: center; justify-content: center;
+    column-gap: .4rem; row-gap: .1rem; line-height: 1.2;
+  }
+  /* Narrow only while it shares a row with a town. Alone on its own row it
+     goes back to full width, where the label fits on one line and the button
+     is a single row tall: kept narrow there it wrapped to three lines and
+     cost 65px of height, which is what pushed two towns into scrolling. */
+  .addbtn.inline { flex: 0 1 14%; min-width: 8rem; }
+  .addbtn .albl { text-align: center; }
+  .addbtn .plus { font-size: 1.35rem; line-height: 1; font-weight: 500; }
+  .addbtn:active { background: var(--add); color: #fff; border-style: solid; }
+
+  /* ---------- suggestion dropdown ---------- */
+  #drop {
+    /* Above the Submit bar, never over the keyboard: typing continues while
+           the list is open. */
+    position: fixed; z-index: 55; display: none;
+    background: var(--panel);
+    border: 2px solid var(--focus); border-radius: 16px;
+    box-shadow: 0 10px 28px rgba(16,23,58,.28);
+    overflow-y: auto; max-height: 42vh;
+  }
+  #drop.show { display: block; }
+  .opt {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: .8rem; width: 100%; text-align: left;
+    padding: .62rem 1rem; font: inherit; font-size: 1.05rem;
+    background: none; border: none; border-bottom: 1px solid #D9DCE8;
+    color: var(--ink); cursor: pointer;
+  }
+  .opt:last-child { border-bottom: none; }
+  /* A quiet label so the list reads as an offer rather than as something that
+     happened to the field. Sticky, so it stays put if the list scrolls. */
+  .dhead {
+    position: sticky; top: 0; z-index: 1;
+    font-size: .72rem; font-style: italic; color: var(--muted);
+    background: var(--tint); border-bottom: 1px solid var(--edge-lt);
+    padding: .22rem .7rem; letter-spacing: .02em;
+  }
+  .opt > span:first-child {
+    font-variant-caps: small-caps;
+    letter-spacing: .015em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .opt:active, .opt.sel { background: var(--focus); color: #fff; }
+  .opt.looking { color: var(--muted); font-size: .9rem; font-style: italic;
+                 cursor: default; }
+  .opt .mi.lit { background: #E4E6F2; color: var(--muted); }
+  .opt.sel .mi, .opt:active .mi { background: rgba(255,255,255,.28); color: #fff; }
+  .opt:active .mi { background: rgba(255,255,255,.28); color: #fff; }
+  .opt .mi {
+    flex: none; font-size: .82rem; padding: .2rem .55rem; border-radius: 20px;
+    font-variant-numeric: tabular-nums; font-weight: 600;
+  }
+  .opt .mi.near { background: var(--tint); color: var(--sea); }
+  .opt .mi.far  { background: var(--focusbg); color: var(--focus); }
+
+  /* ---------- action bar ---------- */
+  .actionbar {
+    flex: none; padding: .5rem 1.3rem;
+    background: var(--paper); border-top: 2px solid var(--edge-lt);
+  }
+  /* The one thing on the page to press, so it is styled unlike anything else:
+     its own accent colour, a heavy border, capitals and wide letter-spacing.
+     The drop shadow sits directly under the border and collapses on press, so
+     the button physically goes down under the finger. */
+  .done {
+    width: 100%; background: var(--go); color: var(--go-ink);
+    border: 2px solid var(--go-edge); border-radius: 19px;
+    font-family: inherit; font-size: 1.5rem; font-weight: 800;
+    letter-spacing: .01em;
+    padding: .82rem; cursor: pointer;
+    box-shadow: 0 4px 0 var(--go-edge);
+  }
+  /* Sits above the button, quiet, so nobody feels stuck waiting to finish. */
+  .gonote {
+    font-size: .95rem; color: var(--muted); text-align: center;
+    margin: 0 0 .38rem; line-height: 1.3;
+  }
+  .done:active { transform: translateY(4px); box-shadow: none; }
+
+  /* ---------- keyboard ---------- */
+  .kbwrap { flex: none; background: #EFE7EC; border-top: 2px solid var(--keyedge);
+            min-height: 286px; }
+  .kb { padding: .35rem .7rem .45rem;
+        padding-bottom: calc(.55rem + env(safe-area-inset-bottom, 0px));
+        padding-left:  calc(.7rem + env(safe-area-inset-left, 0px));
+        padding-right: calc(.7rem + env(safe-area-inset-right, 0px)); }
+  .krow { display: flex; gap: .36rem; margin-bottom: .3rem; justify-content: center; }
+  .krow:last-child { margin-bottom: 0; }
+  .k {
+    flex: 1 1 0; min-width: 0;
+    background: var(--key); border: 2px solid var(--keyedge);
+    border-radius: 12px; height: 50px;
+    font-size: 1.15rem; font-family: inherit; font-weight: 500; color: var(--keyink);
+    cursor: pointer; box-shadow: 0 2px 0 rgba(16,23,58,.25);
+  }
+  /* Press state is driven from JS rather than :active. Two reasons: :active
+       on iOS only fires reliably with a touch listener registered, and
+       `.digits .k` and `.k.dim` carry the same specificity as `.k:active`
+       while coming later in the file, so they won and the number row never
+       lit up. `.kb .k.pressed` outranks both, and JS holds it long enough to
+       be seen on a fast tap. */
+  .kb .k.pressed {
+    background: var(--focus); color: #fff; border-color: var(--focus);
+    transform: translateY(2px); box-shadow: none;
+  }
+  .k.wide { flex: 1.7 1 0; font-size: .9rem; }
+  .k.space { flex: 5 1 0; }
+  .k.dim { background: var(--keyface); }
+  /* Digits get their own full-width row, larger and heavier. They are the
+       keys people hunt for and they are read at arm's length. */
+  .digits { margin-bottom: .5rem; }
+  .digits .k {
+    height: 56px; font-size: 1.5rem; font-weight: 700;
+    background: #F2F4FB; border-color: var(--edge);
+  }
+
+  /* ---------- thank you ---------- */
+  #thanks {
+    position: fixed; inset: 0; background: var(--ink); color: #fff;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    padding: 2rem; z-index: 50;
+  }
+  #thanks.show { display: flex; }
+  #thanks h1 { font-family: var(--serif); font-size: 3.1rem;
+               margin: 0 0 .5rem; font-weight: 600; letter-spacing: .01em; }
+  #thanks p { font-family: var(--serif); font-size: 1.32rem;
+              opacity: .92; margin: 0; }
+
+
+  /* Short viewports. iPad landscape is 768px tall, and five keyboard rows
+       plus the action bar leave little for the form. Spacing tightens rather
+       than the layout reflowing, so it still reads the same; only whitespace
+       goes. */
+
+  /* Any of these on the page would let iOS raise its own keyboard over ours.
+       Suppressed here so a later edit can't reintroduce it silently. */
+  /* No text-entry element may exist inside the kiosk, or iOS raises its own
+       keyboard over ours. The review screen sits outside #app and keeps real
+       inputs, because its date fields want the system picker. */
+  #app input, #app textarea, #app select, #app [contenteditable] {
+    display: none !important;
+  }
+
+  .jswarn {
+    background: #FDF4E0; border: 2px solid #A86A00; color: #4A2140;
+    border-radius: 16px; padding: 1rem 1.2rem; margin: 1.2rem;
+    font-size: 1rem; line-height: 1.45;
+  }
+  .jswarn b { display: block; margin-bottom: .3rem; }
+
+  @media (max-height: 830px) {
+    header {
+      padding: .3rem 1.1rem;
+      padding-top: calc(.3rem + env(safe-area-inset-top, 0px));
+      padding-left: calc(1.1rem + env(safe-area-inset-left, 0px));
+      padding-right: calc(1.1rem + env(safe-area-inset-right, 0px));
+    }
+    .peek, .refresh { padding: .14rem .6rem; }
+    .logo { height: 28px; }
+    .refresh .lbl { font-size: .66rem; }
+    .peek-date { font-size: .76rem; }
+    .peek-cta { font-size: .7rem; }
+    main { padding: .4rem 1.1rem .42rem; }
+    .identity { margin-bottom: .22rem; }
+    .quiet-label { font-size: .98rem; margin-bottom: .1rem; }
+    .field.small { min-height: 40px; }
+    h2 { font-size: 1.16rem; }
+    .field { min-height: 46px; font-size: 1.04rem; }
+    .field.num { min-height: 40px; font-size: 1.12rem; }
+    .numcell > span { font-size: .98rem; }
+    .numcell { gap: .1rem; }
+    .step { flex: 0 0 2.1rem; font-size: 1.3rem; }
+    .stepper.small .step { flex: 0 0 2rem; }
+    .town { padding: .28rem .42rem .3rem; }
+    .nums { margin-top: .22rem; gap: .4rem; }
+    .addbtn { padding: .5rem .8rem; font-size: 1.04rem; }
+    .actionbar { padding: .24rem 1.1rem; }
+    .done { padding: .5rem; font-size: 1.3rem; }
+    .gonote { font-size: .84rem; margin-bottom: .14rem; }
+    .kb { padding: .25rem .6rem .3rem; }
+    .krow { gap: .28rem; margin-bottom: .25rem; }
+    .k { height: 42px; font-size: 1.04rem; }
+    .digits { margin-bottom: .34rem; }
+    .digits .k { height: 46px; font-size: 1.3rem; }
+    /* the reserved floor must shrink too, or it props the keyboard open */
+    .kbwrap { min-height: 240px; }
+  }
+
+
+  /* ---------- review overlay ---------- */
+  #review {
+    position: fixed; inset: 0; background: var(--paper); z-index: 60;
+    display: none; flex-direction: column;
+  }
+  #review.show { display: flex; }
+  #review > header { flex: none; }
+  #review .rbody {
+    flex: 1 1 auto; overflow-y: auto; padding: 1.3rem;
+    padding-bottom: calc(1.3rem + env(safe-area-inset-bottom, 0px));
+    padding-left:   calc(1.3rem + env(safe-area-inset-left, 0px));
+    padding-right:  calc(1.3rem + env(safe-area-inset-right, 0px));
+  }
+  #review .inner { max-width: 1000px; margin: 0 auto; }
+  #review .wordmark { font-family: var(--serif); font-size: 1.14rem; }
+  #review .rbtns { display: flex; gap: .6rem; }
+  #review .rbtns button {
+    color: #fff; font: inherit; font-size: .9rem; background: none;
+    border: 1px solid rgba(255,255,255,.45); border-radius: 7px;
+    padding: .4rem .95rem; cursor: pointer;
+  }
+  .rangebar {
+    display: flex; flex-wrap: wrap; gap: .8rem 1.4rem; align-items: center;
+    padding: .7rem .9rem; margin-bottom: 1.1rem;
+    background: #fff; border: 1px solid var(--edge); border-radius: 10px;
+  }
+  .rgrp { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+  .rgrp label { font-size: .82rem; color: var(--muted); font-weight: 600; }
+  .rangebar input[type="date"] {
+    font: inherit; font-size: .92rem; padding: .35rem .5rem;
+    border: 2px solid var(--edge); border-radius: 7px; color: var(--ink);
+    background: #fff;
+  }
+  .rbtn {
+    font: inherit; font-size: .86rem; font-weight: 600;
+    padding: .4rem .8rem; border-radius: 7px; cursor: pointer;
+    border: 2px solid var(--edge); background: #fff; color: var(--ink);
+  }
+  .rbtn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .rbtn:active { background: var(--focusbg); }
+  .rgrp.themes { margin-left: auto; }
+  .tlabel { font-size: .82rem; color: var(--muted); font-weight: 600; }
+  .rangenote { font-size: .86rem; color: var(--muted); margin-bottom: .9rem; }
+
+  table.tally {
+    width: 100%; border-collapse: collapse; background: #fff;
+    border: 2px solid var(--ink); margin-bottom: 1.3rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .tally th, .tally td {
+    border: 1px solid #CDB2C1; padding: .5rem .4rem; text-align: center;
+    font-size: .95rem;
+  }
+  .tally th {
+    font-size: .78rem; font-weight: 700; line-height: 1.2;
+    background: #F7E9F1; vertical-align: bottom;
+  }
+  .tally th em {
+    display: block; font-style: normal; font-weight: 600;
+    color: var(--indigo); font-size: .72rem; margin-top: .15rem;
+  }
+  .tally td { font-size: 1.05rem; }
+  .tally td.day, .tally th:first-child { text-align: left; white-space: nowrap;
+                                         font-size: .88rem; }
+  .tally tr.latest td { background: #FBEBF2; font-weight: 700; }
+  .tally tr.wk td { font-weight: 700; background: #F5E6EE;
+                    border-top: 1px solid var(--ink); }
+  .tally tr.wk td.day { color: var(--indigo); }
+  .tally tr.gap td { height: .5rem; padding: 0; border-left: none;
+                     border-right: none; background: var(--paper); }
+  .tally td.day em { font-style: normal; color: var(--accent); font-size: .78rem;
+                     font-weight: 700; }
+  .tally tr.grand td { font-weight: 700; border-top: 2px solid var(--ink);
+                       background: #FBEEF4; font-size: 1.15rem; }
+  .rsub { font-size: 1rem; font-weight: 700; margin: 1.6rem 0 .6rem; }
+  .rnote { font-weight: 400; color: var(--muted); font-size: .85rem; }
+  .storeline { font-size: .84rem; color: var(--muted); margin-bottom: 1rem; }
+  .storeline .bar {
+    height: 7px; background: #E9D6E1; border-radius: 4px;
+    overflow: hidden; margin-bottom: .35rem;
+  }
+  .storeline .bar i { display: block; height: 100%; background: var(--sea); }
+  .tot { background:#fff; border:1px solid var(--edge); border-radius:10px;
+         padding:.75rem .9rem; }
+  .tot .n { font-size:1.85rem; font-weight:650; line-height:1.1;
+            font-variant-numeric:tabular-nums; }
+  .tot .l { font-size:.78rem; color:var(--muted); line-height:1.3; margin-top:.25rem; }
+  .tot .l b { display:block; color:var(--indigo); font-weight:600; }
+  .note { background:#FDF4E0; border:1px solid #C79415; border-radius:8px;
+          padding:.75rem 1rem; font-size:.88rem; margin-bottom:1.3rem; }
+  .visit { background:#fff; border:1px solid var(--edge); border-radius:10px;
+           padding:.7rem .9rem; margin-bottom:.65rem; }
+  /* The whole header is the toggle, so the target is the full width of the
+     card rather than a small chevron. */
+  .vhead { display:flex; gap:.8rem; align-items:baseline; flex-wrap:wrap;
+           width:100%; text-align:left; background:none; border:none;
+           font:inherit; cursor:pointer; padding:0;}
+  .vhead .who { color:var(--ink); font-weight:600; font-size:.96rem; }
+  .vhead .anon { color:var(--muted); font-weight:400; font-style:italic; }
+  .r { display:flex; flex-wrap:wrap; gap:.45rem; row-gap:.3rem;
+       align-items:center; border-left:4px solid #C0A3B2; background:#FAF3F7;
+       border-radius:6px; padding:.45rem .7rem; margin-bottom:.32rem;
+       font-size:.9rem; }
+  .r.usable { border-left-color:#0F7268; background:#E9F3F0; }
+  .r.review { border-left-color:#C79415; background:#FDF4E0; }
+  .r .what { flex:1 1 14rem; min-width:0; }
+  .r .raw { color:var(--muted); font-size:.79rem; }
+  .r .pill { font-size:.74rem; padding:.15rem .5rem; border-radius:20px;
+             background:rgba(27,35,80,.09); white-space:nowrap;
+             font-variant-numeric:tabular-nums; }
+  .r .pill.yes { background:#D8E7E3; color:#0B5A52; }
+  .vchev { color:var(--accent); font-size:.8rem; display:inline-block;
+           transition:transform .12s ease; }
+  .vhead[aria-expanded="true"] .vchev { transform:rotate(90deg); }
+  .vhead:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+  .vdetail { margin-top:.5rem; border-top:1px dashed var(--edge-lt); padding-top:.5rem; }
+  .vdetail[hidden] { display:none; }
+  .vblock { margin-bottom:.55rem; }
+  .vblock:last-child { margin-bottom:0; }
+  .vbh { font-size:.8rem; font-weight:700; color:var(--accent);
+         text-transform:uppercase; letter-spacing:.05em; margin-bottom:.2rem; }
+  .vrow { display:flex; justify-content:space-between; gap:1rem;
+          font-size:.82rem; padding:.16rem 0; border-bottom:1px solid var(--tint); }
+  .vrow:last-child { border-bottom:none; }
+  .vrow > span:first-child { color:var(--muted); }
+  .vrow > span:last-child { color:var(--ink); font-weight:600; text-align:right; }
+  /* Deliberately plain until pressed. It sits inside the panel, so a card has
+     to be opened before it can be reached at all. */
+  .vdel { margin-top:.6rem; }
+  .delbtn {
+    font:inherit; font-size:.82rem; font-weight:600; cursor:pointer;
+    color:#8C1D1D; background:#fff; border:2px solid #8C1D1D;
+    border-radius:8px; padding:.35rem .8rem;
+  }
+  .delbtn:active { background:#8C1D1D; color:#fff; }
+  .delbtn:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+  .rempty { text-align:center; color:var(--muted); padding:3rem 1rem; }
+
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<noscript>
+  <div class="jswarn">
+    <b>This page needs JavaScript, and it is switched off.</b>
+    If you opened the file from the Files app, iOS is showing you a preview
+    that never runs scripts. Open it in Safari instead, or host it and visit
+    the address.
+  </div>
+</noscript>
+
+<div id="boot" class="jswarn" style="display:none">
+  <b>Something went wrong starting the sign-in form.</b>
+  <span id="booterr"></span>
+</div>
+
+<div id="app">
+  <header>
+    <svg class="logo" viewBox="0 0 2911 982" role="img"
+         aria-label="San Juan Islands Museum of Art"><g transform="translate(0.000000,982.000000) scale(0.100000,-0.100000)" fill="currentColor"><path d="M3976 9650 c-82 -94 -152 -170 -155 -170 -3 0 -56 20 -117 44 -531 209 -1219 288 -1754 200 -1096 -180 -1778 -973 -1747 -2028 6 -207 24 -324 74 -481 127 -397 398 -681 868 -910 191 -94 328 -148 755 -300 603 -214 862 -317 1095 -433 632 -315 878 -666 878 -1252 1 -374 -134 -674 -417 -928 -335 -301 -912 -431 -1425 -321 -699 151 -1250 754 -1764 1929 l-64 145 -71 3 -72 3 0 -1176 0 -1175 63 0 62 0 295 224 295 224 60 -33 c236 -132 676 -278 1005 -334 523 -89 1085 -31 1524 158 333 144 624 384 818 674 l45 68 18 -72 c113 -468 546 -780 1220 -881 120 -17 587 -18 710 0 683 99 1183 391 1572 919 185 250 356 602 462 948 17 55 285 1045 595 2200 310 1155 574 2124 586 2154 84 214 268 327 642 396 100 18 154 10 298 -46 211 -81 329 -213 366 -406 12 -68 14 -428 12 -2728 -3 -2554 -4 -2652 -22 -2705 -100 -297 -362 -421 -966 -458 l-115 -7 -3 -62 -3 -63 1561 0 1560 0 0 65 0 65 -62 0 c-86 0 -274 18 -383 36 -394 66 -595 210 -647 464 -11 53 -13 547 -13 2715 0 2501 1 2654 18 2714 83 300 376 446 961 477 l126 7 0 59 0 58 -2640 0 -2640 0 -6 -27 c-3 -16 -10 -43 -14 -60 -5 -18 -5 -35 -2 -37 4 -2 61 -7 127 -10 185 -11 388 -35 515 -60 340 -69 451 -191 399 -438 -17 -79 -1204 -4524 -1246 -4663 -162 -543 -389 -932 -668 -1144 -436 -330 -1150 -300 -1520 65 -57 55 -145 174 -145 194 0 4 26 13 58 19 159 36 318 125 422 238 232 254 241 684 19 904 -189 185 -527 200 -780 34 l-80 -53 6 32 c28 163 33 459 10 627 -47 359 -173 628 -403 862 -268 272 -581 435 -1312 682 -550 185 -815 287 -1034 397 -591 295 -822 642 -803 1208 9 274 63 453 197 654 334 499 1113 671 1701 375 454 -228 851 -755 1169 -1552 l63 -158 66 3 66 3 3 1048 2 1047 -62 0 -63 -1 -149 -169z M13481 6287 c-293 -1816 -536 -3314 -538 -3329 l-5 -28 1176 0 c948 0 1176 2 1176 13 0 7 74 717 165 1577 144 1375 165 1595 171 1808 l7 242 28 0 c27 0 28 -2 33 -67 14 -156 40 -317 73 -448 26 -107 688 -2299 909 -3013 l35 -112 711 2 710 3 502 1570 c478 1491 535 1681 590 1947 17 80 28 114 39 116 12 3 16 -18 21 -125 12 -232 26 -383 182 -1939 85 -847 154 -1548 154 -1557 0 -16 157 -17 2269 -17 l2268 0 33 153 c18 83 58 269 89 412 l57 260 917 3 917 2 7 -27 c3 -16 52 -201 108 -413 l102 -385 1283 -3 1282 -2 -6 22 c-3 13 -536 1510 -1184 3328 l-1179 3305 -1339 3 -1340 2 -1030 -2974 c-566 -1636 -1032 -2972 -1035 -2968 -3 4 -224 1342 -490 2974 l-484 2968 -1235 0 -1235 0 -417 -1468 c-230 -807 -427 -1513 -438 -1568 -23 -116 -50 -336 -50 -406 0 -46 -1 -48 -28 -48 l-29 0 -17 123 c-48 342 -39 308 -537 2054 l-374 1313 -1245 0 -1245 0 -534 -3303z m11833 1041 c3 -18 15 -98 26 -178 36 -247 76 -433 241 -1115 88 -363 162 -668 165 -677 5 -17 -22 -18 -475 -18 -265 0 -481 3 -481 7 0 3 79 314 175 689 97 376 187 738 200 806 28 145 55 367 55 456 l0 62 45 0 c42 0 44 -1 49 -32z M25459 2386 c-204 -59 -371 -249 -459 -521 -65 -202 -52 -181 -122 -189 -33 -3 -77 -6 -98 -6 -47 0 -83 -35 -78 -76 l3 -29 103 -3 c99 -3 102 -3 102 -26 0 -38 -349 -1224 -381 -1295 -33 -74 -52 -97 -93 -118 -52 -27 -93 -10 -167 69 -80 85 -105 90 -156 34 -98 -107 20 -226 211 -214 155 10 359 164 446 337 15 31 71 211 123 401 123 441 226 792 238 806 6 7 65 15 149 19 124 6 141 9 158 29 26 28 31 47 20 69 -9 17 -20 18 -149 12 -116 -6 -140 -5 -144 7 -7 17 71 292 115 406 41 107 83 161 142 186 90 37 147 3 204 -121 31 -70 34 -73 67 -73 55 0 90 45 95 123 5 77 -20 119 -91 155 -58 30 -168 38 -238 18z M10180 2354 c-47 -19 -114 -42 -150 -51 -36 -10 -71 -21 -78 -27 -23 -17 -8 -49 33 -70 78 -41 75 -8 75 -742 0 -512 -3 -654 -13 -662 -7 -6 -38 -20 -70 -32 -32 -12 -61 -28 -64 -36 -14 -36 9 -39 264 -38 136 1 252 3 256 3 5 1 7 11 5 23 -2 17 -17 28 -57 44 -103 41 -93 -54 -89 840 3 692 1 784 -12 784 -8 -1 -53 -17 -100 -36z M13605 2364 c-33 -14 -104 -38 -158 -54 -116 -35 -117 -35 -117 -61 0 -14 13 -25 43 -38 83 -36 82 -33 85 -297 3 -202 1 -234 -12 -234 -8 0 -45 7 -83 16 -89 21 -208 13 -302 -19 -368 -128 -480 -610 -205 -885 163 -163 393 -172 559 -20 l54 49 -6 -73 c-8 -102 -1 -106 112 -63 50 18 131 42 180 51 102 20 115 27 115 59 0 30 -12 34 -91 27 -63 -4 -68 -3 -80 19 -15 26 -18 350 -10 1134 4 351 3 410 -10 412 -8 1 -41 -9 -74 -23z m-287 -783 c48 -25 99 -75 123 -123 17 -34 19 -61 19 -296 0 -293 5 -274 -90 -323 -105 -55 -244 -26 -331 68 -151 164 -136 527 26 655 65 51 174 59 253 19z M27223 2273 c-32 -25 -64 -51 -72 -57 -7 -6 -34 -13 -59 -16 -42 -4 -50 -10 -82 -54 -84 -117 -653 -821 -821 -1016 -214 -248 -264 -288 -437 -345 -97 -32 -120 -49 -109 -79 6 -15 33 -16 314 -10 170 3 314 8 321 10 8 2 12 15 10 31 -3 24 -11 31 -56 47 -67 24 -85 49 -72 96 12 44 276 390 310 407 41 21 383 18 401 -3 11 -14 7 -41 -30 -183 -69 -268 -75 -276 -258 -321 -53 -13 -76 -35 -63 -59 8 -16 38 -18 350 -24 187 -3 347 -4 356 0 32 12 11 47 -41 65 -103 38 -125 62 -125 140 0 24 59 341 131 705 81 408 129 672 125 688 -9 35 -26 32 -93 -22z m-188 -265 c7 -19 -120 -587 -133 -600 -15 -15 -331 -23 -351 -10 -11 8 25 61 170 249 307 398 302 393 314 361z M435 2283 c-252 -56 -395 -227 -383 -456 9 -172 83 -262 352 -428 253 -156 300 -207 313 -343 16 -174 -90 -296 -259 -296 -158 0 -283 109 -348 306 -24 72 -45 89 -86 74 l-27 -11 6 -107 c12 -207 31 -244 150 -301 218 -104 516 -68 673 81 98 93 140 207 132 364 -9 184 -80 270 -394 476 -255 168 -295 218 -280 346 14 117 74 179 196 202 144 27 277 -60 336 -220 20 -55 47 -80 85 -80 40 0 46 33 26 150 -31 182 -40 194 -182 230 -74 19 -251 26 -310 13z M15555 2267 c-35 -28 -8 -50 83 -69 137 -28 189 -70 177 -143 -7 -46 -488 -1006 -556 -1110 -70 -107 -112 -136 -268 -186 -24 -8 -49 -22 -55 -32 -19 -31 10 -39 123 -33 57 3 184 6 281 6 135 0 181 3 195 14 27 19 8 40 -55 61 -64 21 -76 52 -56 146 23 106 144 392 325 764 105 214 132 258 146 235 11 -18 24 -349 31 -808 8 -481 8 -478 68 -411 17 19 92 116 167 214 139 183 791 945 809 945 14 0 15 7 -41 -209 -71 -275 -112 -422 -170 -604 -62 -195 -90 -232 -205 -266 -76 -23 -100 -40 -90 -67 6 -15 20 -16 144 -9 173 11 222 11 407 1 133 -8 152 -7 164 7 15 18 9 45 -11 51 -132 38 -151 63 -145 191 6 136 152 792 231 1041 44 139 77 167 218 194 71 14 108 41 92 67 -11 17 -27 18 -215 14 -112 -2 -212 -7 -223 -10 -10 -4 -44 -51 -75 -104 -98 -169 -836 -1057 -878 -1057 -18 0 -21 66 -33 600 -11 493 -16 552 -48 565 -9 3 -129 9 -267 12 -216 4 -253 3 -270 -10z M3763 2263 c-32 -11 5 -73 44 -73 7 0 38 -9 68 -21 103 -38 95 31 95 -849 0 -828 -2 -862 -54 -940 -28 -42 -74 -65 -111 -56 -14 4 -51 33 -81 65 -85 91 -137 102 -195 40 -50 -54 -47 -128 7 -164 75 -49 256 -60 342 -20 116 54 252 232 326 425 20 53 21 75 26 742 5 675 5 687 26 715 19 26 35 33 167 78 20 7 24 54 5 56 -46 4 -655 5 -665 2z M8396 2258 c-41 -23 -5 -58 82 -78 65 -15 108 -50 122 -98 13 -49 14 -1154 0 -1201 -18 -64 -53 -86 -186 -121 -43 -11 -62 -34 -45 -54 12 -14 717 -17 739 -3 27 18 -8 46 -85 69 -56 16 -87 32 -115 58 l-38 37 0 607 c0 555 1 610 17 637 18 30 74 62 133 74 65 13 101 51 68 71 -18 11 -673 13 -692 2z M28791 1930 c-40 -32 -61 -60 -103 -142 l-53 -103 -87 -5 c-79 -5 -90 -8 -117 -34 -17 -16 -32 -28 -33 -25 -2 2 -10 18 -18 34 -20 40 -75 67 -121 62 -117 -15 -279 -176 -443 -441 -33 -53 -66 -96 -74 -96 -8 0 -12 6 -9 13 107 262 139 347 144 388 11 95 -30 135 -130 127 -107 -9 -247 -103 -247 -167 0 -41 13 -45 61 -21 22 12 60 22 82 23 37 2 42 -1 45 -21 2 -12 -57 -181 -131 -375 -74 -194 -138 -367 -142 -385 -8 -41 11 -74 55 -92 59 -24 92 11 210 220 140 249 340 549 405 609 70 64 109 55 120 -29 11 -79 24 -100 58 -100 58 0 137 117 137 204 0 16 3 17 12 8 7 -7 26 -12 44 -12 71 0 124 -12 124 -29 0 -9 -58 -177 -130 -374 -71 -196 -130 -370 -130 -386 0 -67 88 -128 156 -109 160 43 414 256 414 346 0 36 -26 26 -101 -38 -124 -107 -201 -129 -207 -60 -3 46 199 608 228 631 14 12 51 19 141 24 103 6 124 10 142 28 l20 20 -21 17 c-21 17 -140 40 -207 40 -19 0 -37 5 -40 10 -4 6 10 60 31 120 32 93 36 114 26 135 -17 36 -52 32 -111 -15z M2309 1709 c-37 -22 -109 -55 -160 -73 -83 -30 -94 -37 -97 -59 -3 -22 3 -29 32 -41 70 -29 71 -34 74 -376 2 -197 0 -315 -7 -333 -10 -26 -30 -38 -108 -67 -36 -14 -48 -34 -29 -52 10 -10 70 -13 256 -13 219 0 244 2 254 17 15 24 -5 41 -72 63 -29 9 -57 25 -62 35 -6 11 -10 143 -10 328 0 356 -4 340 96 387 170 80 322 20 344 -137 11 -72 11 -521 1 -558 -7 -25 -20 -34 -96 -67 -39 -18 -58 -49 -37 -62 8 -5 474 -7 505 -2 4 0 7 10 7 21 0 16 -16 28 -67 51 -37 17 -70 33 -73 35 -3 3 -7 153 -10 332 -7 378 -11 401 -99 491 -116 119 -337 103 -510 -37 l-53 -44 3 97 c3 60 0 99 -6 101 -5 2 -40 -15 -76 -37z M6969 1709 c-37 -22 -109 -55 -160 -73 -83 -30 -94 -37 -97 -59 -3 -22 3 -29 32 -41 70 -29 71 -34 74 -376 2 -197 0 -315 -7 -333 -10 -26 -30 -38 -108 -67 -36 -14 -48 -34 -29 -52 10 -10 70 -13 256 -13 219 0 244 2 254 17 15 24 -5 41 -72 63 -29 9 -57 25 -62 35 -6 11 -10 143 -10 328 0 356 -4 340 96 387 170 80 322 20 344 -137 11 -72 11 -521 1 -558 -7 -25 -20 -34 -96 -67 -39 -18 -58 -49 -37 -62 8 -5 474 -7 505 -2 4 0 7 10 7 21 0 16 -16 28 -67 51 -37 17 -70 33 -73 35 -3 3 -7 153 -10 332 -7 378 -11 401 -99 491 -116 119 -337 103 -510 -37 l-53 -44 3 97 c3 60 0 99 -6 101 -5 2 -40 -15 -76 -37z M11739 1709 c-37 -22 -109 -55 -160 -73 -83 -30 -94 -37 -97 -59 -3 -22 3 -29 32 -41 70 -29 71 -34 74 -376 2 -197 0 -315 -7 -333 -10 -26 -30 -38 -108 -67 -36 -14 -48 -34 -29 -52 10 -10 70 -13 256 -13 219 0 244 2 254 17 15 24 -5 41 -72 63 -29 9 -57 25 -62 35 -6 11 -10 143 -10 328 0 356 -4 340 96 387 170 80 322 20 344 -137 11 -72 11 -521 1 -558 -7 -25 -20 -34 -96 -67 -39 -18 -58 -49 -37 -62 8 -5 474 -7 505 -2 4 0 7 10 7 21 0 16 -16 28 -67 51 -37 17 -70 33 -73 35 -3 3 -7 153 -10 332 -7 378 -11 401 -99 491 -116 119 -337 103 -510 -37 l-53 -44 3 97 c3 60 0 99 -6 101 -5 2 -40 -15 -76 -37z M17815 1695 c-150 -62 -345 -245 -345 -325 0 -16 46 -12 61 7 26 31 142 113 160 113 13 0 19 -7 19 -21 0 -11 -59 -158 -131 -327 -76 -180 -130 -321 -131 -340 0 -44 45 -110 87 -128 88 -36 205 57 510 409 95 109 121 134 133 123 6 -7 -6 -36 -100 -245 -85 -189 -90 -216 -42 -248 50 -33 182 8 282 87 27 21 62 45 79 53 42 22 141 114 148 138 4 11 1 26 -5 34 -10 12 -23 5 -79 -42 -135 -115 -231 -162 -231 -113 0 11 68 183 151 382 160 384 161 387 114 434 -55 55 -92 31 -189 -120 -83 -129 -207 -290 -349 -456 -199 -232 -266 -286 -275 -222 -3 20 208 512 284 664 32 64 31 99 -5 137 -36 38 -65 39 -146 6z M20515 1695 c-150 -62 -345 -245 -345 -325 0 -16 46 -12 61 7 26 31 142 113 160 113 13 0 19 -7 19 -21 0 -11 -59 -158 -131 -327 -76 -180 -130 -321 -131 -340 0 -44 45 -110 87 -128 88 -36 205 57 510 409 95 109 121 134 133 123 6 -7 -6 -36 -100 -245 -85 -189 -90 -216 -42 -248 50 -33 182 8 282 87 27 21 62 45 79 53 42 22 141 114 148 138 4 11 1 26 -5 34 -10 12 -23 5 -79 -42 -135 -115 -231 -162 -231 -113 0 11 68 183 151 382 160 384 161 387 114 434 -55 55 -92 31 -189 -120 -83 -129 -207 -290 -349 -456 -199 -232 -266 -286 -275 -222 -3 20 208 512 284 664 32 64 31 99 -5 137 -36 38 -65 39 -146 6z M1455 1683 c-188 -65 -364 -220 -353 -311 5 -42 57 -42 139 0 63 33 64 34 67 78 4 79 10 90 55 110 93 43 181 15 207 -66 18 -53 4 -258 -18 -277 -10 -8 -84 -43 -167 -77 -186 -78 -247 -117 -274 -174 -39 -80 -22 -159 51 -233 95 -97 238 -89 382 21 l49 38 44 -51 c87 -100 204 -102 312 -5 78 70 69 126 -14 84 -63 -32 -102 -23 -130 29 -12 25 -14 77 -8 353 6 318 6 324 -16 373 -27 61 -45 82 -95 107 -65 33 -138 33 -231 1z m115 -665 c0 -159 -29 -206 -131 -216 -45 -4 -51 -2 -84 31 -57 57 -45 145 28 201 42 32 135 75 165 75 21 1 22 -2 22 -91z M4760 1694 c-30 -7 -95 -19 -145 -25 -99 -13 -115 -20 -115 -55 0 -18 10 -28 43 -42 85 -38 81 -23 87 -381 5 -294 7 -319 26 -362 52 -112 132 -163 259 -162 123 1 223 39 329 126 l48 40 -7 -85 c-5 -57 -4 -88 3 -92 6 -4 71 14 144 38 73 25 156 48 183 52 70 9 87 20 83 52 -3 26 -5 27 -73 30 -51 2 -73 7 -82 19 -16 21 -18 702 -3 784 15 79 4 87 -97 65 -43 -10 -127 -20 -188 -23 -132 -7 -155 -14 -155 -47 0 -31 15 -42 69 -50 55 -8 97 -30 116 -60 14 -20 16 -63 13 -289 l-3 -265 -30 -43 c-94 -133 -304 -134 -382 -1 l-28 47 0 275 c0 151 2 318 5 370 l5 95 -25 2 c-14 0 -50 -5 -80 -13z M6115 1683 c-188 -65 -364 -220 -353 -311 5 -42 57 -42 139 0 63 33 64 34 67 78 4 79 10 90 55 110 93 43 181 15 207 -66 18 -53 4 -258 -18 -277 -10 -8 -84 -43 -167 -77 -186 -78 -247 -117 -274 -174 -39 -80 -22 -159 51 -233 95 -97 238 -89 382 21 l49 38 44 -51 c87 -100 204 -102 312 -5 78 70 69 126 -14 84 -63 -32 -102 -23 -130 29 -12 25 -14 77 -8 353 6 318 6 324 -16 373 -27 61 -45 82 -95 107 -65 33 -138 33 -231 1z m115 -665 c0 -159 -29 -206 -131 -216 -45 -4 -51 -2 -84 31 -57 57 -45 145 28 201 42 32 135 75 165 75 21 1 22 -2 22 -91z M9424 1690 c-71 -23 -144 -82 -177 -144 -17 -33 -22 -58 -22 -126 0 -136 35 -182 240 -315 173 -112 210 -172 166 -269 -25 -58 -69 -86 -134 -86 -93 0 -170 59 -218 166 -30 65 -55 89 -85 77 -15 -5 -16 -17 -11 -97 8 -132 17 -150 90 -186 165 -80 374 -55 488 59 62 63 84 118 83 211 -2 133 -71 214 -297 344 -98 56 -147 115 -147 176 0 114 152 171 247 93 20 -16 51 -56 69 -88 33 -60 54 -76 86 -67 34 8 10 184 -30 224 -46 47 -240 62 -348 28z M10875 1683 c-188 -65 -364 -220 -353 -311 5 -42 57 -42 139 0 63 33 64 34 67 78 4 79 10 90 55 110 93 43 181 15 207 -66 18 -53 4 -258 -18 -277 -10 -8 -84 -43 -167 -77 -186 -78 -247 -117 -274 -174 -39 -80 -22 -159 51 -233 95 -97 238 -89 382 21 l49 38 44 -51 c87 -100 204 -102 312 -5 78 70 69 126 -14 84 -63 -32 -102 -23 -130 29 -12 25 -14 77 -8 353 6 318 6 324 -16 373 -27 61 -45 82 -95 107 -65 33 -138 33 -231 1z m115 -665 c0 -159 -29 -206 -131 -216 -45 -4 -51 -2 -84 31 -57 57 -45 145 28 201 42 32 135 75 165 75 21 1 22 -2 22 -91z M14144 1690 c-71 -23 -144 -82 -177 -144 -17 -33 -22 -58 -22 -126 0 -136 35 -182 240 -315 173 -112 210 -172 166 -269 -25 -58 -69 -86 -134 -86 -93 0 -170 59 -218 166 -30 65 -55 89 -85 77 -15 -5 -16 -17 -11 -97 8 -132 17 -150 90 -186 165 -80 374 -55 488 59 62 63 84 118 83 211 -2 133 -71 214 -297 344 -98 56 -147 115 -147 176 0 114 152 171 247 93 20 -16 51 -56 69 -88 33 -60 54 -76 86 -67 34 8 10 184 -30 224 -46 47 -240 62 -348 28z M19061 1679 c-86 -43 -183 -136 -221 -211 -50 -101 -38 -169 60 -343 26 -48 56 -116 66 -151 16 -60 16 -66 0 -108 -21 -56 -52 -76 -115 -76 -51 0 -82 18 -179 102 -39 33 -51 35 -85 7 -58 -45 -56 -157 2 -198 141 -101 469 32 558 225 39 87 20 189 -62 324 -57 94 -105 203 -105 238 0 24 9 42 29 63 46 46 95 36 161 -31 51 -52 77 -52 124 0 46 52 47 85 4 128 -72 68 -143 78 -237 31z M19818 1700 c-193 -49 -393 -262 -484 -516 -35 -99 -57 -233 -47 -287 14 -75 76 -160 147 -202 144 -84 368 6 494 199 64 98 29 122 -60 42 -82 -73 -135 -98 -208 -99 -98 -1 -149 58 -150 172 0 53 25 178 39 194 4 4 61 20 127 37 201 48 323 102 386 167 94 97 89 218 -11 277 -39 23 -170 32 -233 16z m113 -81 c31 -31 23 -114 -15 -164 -56 -74 -190 -148 -292 -162 -41 -5 -44 -4 -44 17 0 72 153 264 245 306 62 29 79 30 106 3z M21628 1686 c-63 -26 -127 -73 -158 -116 -40 -57 -58 -140 -30 -140 5 0 34 22 66 50 78 68 166 83 172 30 2 -15 -47 -152 -116 -325 -181 -455 -179 -449 -121 -504 50 -47 96 -10 184 149 294 531 469 760 583 760 70 0 67 -11 -89 -416 -156 -405 -167 -447 -126 -488 33 -33 55 -33 104 3 50 36 88 89 203 281 132 220 278 434 349 512 103 112 201 139 201 56 0 -18 -63 -187 -150 -398 -82 -201 -150 -377 -150 -391 0 -15 12 -37 31 -55 78 -75 266 -1 435 171 88 89 111 131 90 161 -12 16 -19 12 -85 -47 -95 -84 -148 -119 -183 -119 -21 0 -28 5 -28 19 0 11 51 149 114 308 121 309 132 349 115 417 -16 64 -56 98 -121 104 -144 11 -317 -124 -490 -385 -91 -137 -100 -127 -37 43 67 181 62 266 -21 322 -47 32 -131 27 -210 -13 -76 -38 -205 -173 -312 -325 -48 -69 -94 -134 -102 -145 -33 -47 -20 1 50 178 92 235 95 281 19 313 -50 21 -122 17 -187 -10z M24150 1695 c-250 -70 -491 -419 -494 -715 -1 -109 16 -159 79 -228 105 -117 297 -115 477 4 238 158 401 531 333 761 -18 60 -81 135 -139 165 -54 28 -179 34 -256 13z m167 -89 c116 -100 -84 -698 -277 -827 -75 -50 -148 -34 -166 37 -4 15 -4 70 -1 123 18 301 237 691 389 691 15 0 39 -11 55 -24z"/></g></svg>
+    <div class="headtools">
+    <button class="refresh" id="refresh" title="Clear the form and reload">
+      <span class="ico">&#10227;</span><span class="lbl">Start over</span>
+    </button>
+    <a class="peek" href="/submitted" id="peek">
+      <span class="peek-date"></span>
+      <span class="peek-cta">Today&rsquo;s sign-ins &rsaquo;</span>
+    </a>
+    </div>
+  </header>
+
+  <main>
+    <div class="identity">
+      <div>
+        <label class="quiet-label">Your name</label>
+        <div class="field small" data-key="name"></div>
+      </div>
+      <div>
+        <label class="quiet-label">Email for museum news</label>
+        <div class="field small" data-key="email"></div>
+      </div>
+      <div class="memcell">
+        <label class="quiet-label">&nbsp;</label>
+        <button class="memberbtn" id="memberbtn" aria-pressed="false">
+          <span class="box" aria-hidden="true"></span>
+          <span class="txt">Are you a member?</span>
+        </button>
+      </div>
+    </div>
+
+    <h2>What places is your group visiting from?</h2>
+
+    <div id="rows" class="towngrid"></div>
+  </main>
+
+  <div class="actionbar">
+    <div class="gonote">Press Submit when you’re ready, and come on in.</div>
+    <button class="done" id="done">Submit!</button>
+  </div>
+
+  <div class="kbwrap">
+    <div class="kb">
+      <div class="krow digits" data-keys="1 2 3 4 5 6 7 8 9 0"></div>
+      <div class="krow" data-keys="q w e r t y u i o p"></div>
+      <div class="krow" data-keys="a s d f g h j k l"></div>
+      <div class="krow" data-keys="z x c v b n m"></div>
+      <div class="krow">
+        <button class="k wide dim" data-act="at">&#64;</button>
+        <button class="k wide dim" data-act="dot">.</button>
+        <button class="k space" data-act="space">space</button>
+        <button class="k wide dim" data-act="comma">,</button>
+        <button class="k wide dim" data-act="clear">clear</button>
+        <button class="k wide dim" data-act="back">&#9003;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="drop"></div>
+
+
+<div id="review">
+  <header>
+    <div class="wordmark">Sign-ins this session</div>
+    <div class="rbtns">
+      <button id="reviewReturn" aria-pressed="true">Auto-return</button>
+      <button id="reviewSound">Sound</button>
+      <button id="reviewClear">Clear</button>
+      <button id="reviewClose">Back to sign-in</button>
+    </div>
+  </header>
+  <div class="rbody"><div class="inner">
+    <div class="rangebar">
+      <div class="rgrp">
+        <label for="rFrom">From</label><input type="date" id="rFrom">
+        <label for="rTo">To</label><input type="date" id="rTo">
+        <button id="rApply" class="rbtn primary">Show</button>
+        <button id="rAll" class="rbtn">All dates</button>
+      </div>
+      <div class="rgrp quick">
+        <button class="rbtn" data-range="7">Last 7 days</button>
+        <button class="rbtn" data-range="30">Last 30 days</button>
+        <button class="rbtn" data-range="season">This season</button>
+      </div>
+    </div>
+    <div id="reviewBody"></div>
+  </div></div>
+</div>
+
+<div id="thanks">
+  <h1>Thank you</h1>
+  <p>Enjoy the museum.</p>
+</div>
+
+<script>
+window.onerror = function (msg, src, line, col) {
+  var box = document.getElementById("boot");
+  var out = document.getElementById("booterr");
+  if (box && out) {
+    box.style.display = "block";
+    out.textContent = msg + " (line " + line + ")";
+  }
+  return false;
+};
+</script>
+<script>
+const PLACES = {"origin":{"lat":48.5343,"lon":-123.017},"radius":50.0,"towns":[["Aberdeen",46.9843,-123.7963,"Washington","US"],["Acme",48.6752,-122.1914,"Washington","US"],["Addy",48.4477,-117.8924,"Washington","US"],["Adna",46.6292,-123.06,"Washington","US"],["Airway Heights",47.6447,-117.5922,"Washington","US"],["Albion",46.7911,-117.2494,"Washington","US"],["Allyn",47.385,-122.8536,"Washington","US"],["Almira",47.7632,-118.9123,"Washington","US"],["Amanda Park",47.4706,-123.9074,"Washington","US"],["Amboy",45.9195,-122.4574,"Washington","US"],["Anacortes",48.5004,-122.6309,"Washington","US"],["Anatone",46.1285,-117.0883,"Washington","US"],["Anderson Island",47.1587,-122.696,"Washington","US"],["Appleton",45.909,-121.1486,"Washington","US"],["Ardenvoir",47.7375,-120.3678,"Washington","US"],["Ariel",45.9952,-122.4677,"Washington","US"],["Arlington",48.1829,-122.1121,"Washington","US"],["Ashford",46.7531,-121.9898,"Washington","US"],["Asotin",46.1343,-117.0015,"Washington","US"],["Auburn",47.3163,-122.2701,"Washington","US"],["Bainbridge Island",47.645,-122.5313,"Washington","US"],["Baring",47.7578,-121.4476,"Washington","US"],["Battle Ground",45.7907,-122.5318,"Washington","US"],["Bay Center",46.6317,-123.9536,"Washington","US"],["Beaver",48.0673,-124.3054,"Washington","US"],["Belfair",47.455,-122.8224,"Washington","US"],["Bellevue",47.6199,-122.2074,"Washington","US"],["Bellingham",48.749,-122.4887,"Washington","US"],["Belmont",47.0881,-117.1614,"Washington","US"],["Benge",46.8676,-117.9699,"Washington","US"],["Benton City",46.2806,-119.4913,"Washington","US"],["Beverly",46.8484,-119.9121,"Washington","US"],["Bickleton",45.9597,-120.1042,"Washington","US"],["Bingen",45.6341,-121.1758,"Washington","US"],["Black Diamond",47.3114,-122.0053,"Washington","US"],["Blaine",48.9636,-122.7323,"Washington","US"],["Blakely Island",48.5128,-122.6114,"Washington","US"],["Bonney Lake",47.1819,-122.1739,"Washington","US"],["Bothell",47.7497,-122.2159,"Washington","US"],["Bow",48.562,-122.4134,"Washington","US"],["Boyds",48.6919,-118.1991,"Washington","US"],["Bremerton",47.6019,-122.6299,"Washington","US"],["Brewster",48.1206,-119.772,"Washington","US"],["Bridgeport",48.0161,-119.7028,"Washington","US"],["Brinnon",47.6776,-122.9375,"Washington","US"],["Brownstown",46.4044,-120.6058,"Washington","US"],["Brush Prairie",45.7304,-122.4843,"Washington","US"],["Buckley",47.1524,-122.0621,"Washington","US"],["Bucoda",46.7992,-122.8686,"Washington","US"],["Buena",46.4289,-120.3122,"Washington","US"],["Burbank",46.2,-119.0119,"Washington","US"],["Burley",47.4181,-122.6297,"Washington","US"],["Burlington",48.4786,-122.3345,"Washington","US"],["Burton",47.3892,-122.4594,"Washington","US"],["Camano Island",48.1917,-122.5139,"Washington","US"],["Camas",45.6058,-122.4142,"Washington","US"],["Camp Murray",47.117,-122.5663,"Washington","US"],["Carbonado",47.0802,-122.0513,"Washington","US"],["Carlsborg",48.0908,-123.1708,"Washington","US"],["Carlton",48.2526,-120.1055,"Washington","US"],["Carnation",47.638,-121.9111,"Washington","US"],["Carrolls",46.0717,-122.8611,"Washington","US"],["Carson",45.7493,-121.8351,"Washington","US"],["Cashmere",47.5173,-120.5033,"Washington","US"],["Castle Rock",46.2783,-122.9139,"Washington","US"],["Cathlamet",46.1954,-123.3627,"Washington","US"],["Centerville",45.7032,-120.946,"Washington","US"],["Centralia",46.7246,-122.9671,"Washington","US"],["Chattaroy",47.9192,-117.2921,"Washington","US"],["Chehalis",46.6382,-122.9658,"Washington","US"],["Chelan",47.8483,-120.0273,"Washington","US"],["Chelan Falls",47.8017,-119.9847,"Washington","US"],["Cheney",47.4943,-117.5834,"Washington","US"],["Chewelah",48.2876,-117.7754,"Washington","US"],["Chimacum",47.9861,-122.7883,"Washington","US"],["Chinook",46.2731,-123.9442,"Washington","US"],["Cinebar",46.5671,-122.566,"Washington","US"],["Clallam Bay",48.2255,-124.2015,"Washington","US"],["Clarkston",46.3946,-117.0645,"Washington","US"],["Clayton",47.9552,-117.574,"Washington","US"],["Cle Elum",47.2063,-120.9685,"Washington","US"],["Clearlake",48.4644,-122.2328,"Washington","US"],["Clinton",47.9508,-122.3916,"Washington","US"],["Colbert",47.8411,-117.3759,"Washington","US"],["Colfax",46.88,-117.367,"Washington","US"],["College Place",46.0457,-118.3853,"Washington","US"],["Colton",46.5901,-117.1692,"Washington","US"],["Colville",48.578,-117.8645,"Washington","US"],["Conconully",48.5575,-119.7486,"Washington","US"],["Concrete",48.531,-121.6643,"Washington","US"],["Connell",46.6643,-118.8545,"Washington","US"],["Conway",48.3406,-122.3417,"Washington","US"],["Copalis Beach",47.065,-124.1359,"Washington","US"],["Copalis Crossing",47.1253,-124.1347,"Washington","US"],["Cosmopolis",46.9538,-123.7739,"Washington","US"],["Cougar",46.069,-122.2942,"Washington","US"],["Coulee City",47.5966,-119.2758,"Washington","US"],["Coulee Dam",48.1739,-119.1809,"Washington","US"],["Coupeville",48.2189,-122.6823,"Washington","US"],["Cowiche",46.6661,-120.7149,"Washington","US"],["Creston",47.7977,-118.5307,"Washington","US"],["Curlew",48.9108,-118.6452,"Washington","US"],["Curtis",46.5584,-123.157,"Washington","US"],["Cusick",48.3915,-117.3295,"Washington","US"],["Custer",48.9374,-122.6226,"Washington","US"],["Dallesport",45.6175,-121.1783,"Washington","US"],["Danville",48.9725,-118.4884,"Washington","US"],["Darrington",48.2493,-121.5918,"Washington","US"],["Davenport",47.6809,-118.1667,"Washington","US"],["Dayton",46.3075,-117.9738,"Washington","US"],["Deer Harbor",48.6203,-122.9983,"Washington","US"],["Deer Park",47.9486,-117.4436,"Washington","US"],["Deming",48.8034,-122.154,"Washington","US"],["Dixie",46.1403,-118.1542,"Washington","US"],["Doty",46.6347,-123.2764,"Washington","US"],["Dryden",47.5414,-120.5597,"Washington","US"],["Dupont",47.0969,-122.63,"Washington","US"],["Duvall",47.725,-121.9369,"Washington","US"],["East Olympia",46.9678,-122.8344,"Washington","US"],["East Wenatchee",47.4186,-120.2731,"Washington","US"],["Easton",47.2372,-121.1778,"Washington","US"],["Eastsound",48.6656,-122.937,"Washington","US"],["Eatonville",46.8708,-122.2696,"Washington","US"],["Edmonds",47.8007,-122.3669,"Washington","US"],["Edwall",47.5379,-117.9071,"Washington","US"],["Elbe",46.7666,-122.1503,"Washington","US"],["Electric City",47.9264,-119.0367,"Washington","US"],["Elk",48.0205,-117.2963,"Washington","US"],["Ellensburg",46.9996,-120.5163,"Washington","US"],["Elma",47.0058,-123.3997,"Washington","US"],["Elmer City",47.9981,-118.9533,"Washington","US"],["Eltopia",46.475,-119.1013,"Washington","US"],["Endicott",46.9364,-117.723,"Washington","US"],["Entiat",47.7057,-120.276,"Washington","US"],["Enumclaw",47.2665,-122.0314,"Washington","US"],["Ephrata",47.2771,-119.5336,"Washington","US"],["Ethel",46.5358,-122.776,"Washington","US"],["Evans",48.7458,-118.0001,"Washington","US"],["Everett",47.9884,-122.2006,"Washington","US"],["Everson",48.9045,-122.3325,"Washington","US"],["Fairchild Air Force Base",47.6131,-117.6437,"Washington","US"],["Fairfield",47.3987,-117.1921,"Washington","US"],["Fall City",47.5682,-121.8896,"Washington","US"],["Farmington",47.0847,-117.0763,"Washington","US"],["Federal Way",47.3203,-122.3117,"Washington","US"],["Ferndale",48.8625,-122.5953,"Washington","US"],["Ford",47.9169,-117.8119,"Washington","US"],["Forks",47.9287,-124.3989,"Washington","US"],["Four Lakes",47.5614,-117.5931,"Washington","US"],["Fox Island",47.2524,-122.6286,"Washington","US"],["Freeland",48.0342,-122.5641,"Washington","US"],["Friday Harbor",48.5343,-123.017,"Washington","US"],["Fruitland",47.9797,-118.2159,"Washington","US"],["Galvin",46.7425,-123.0258,"Washington","US"],["Garfield",46.9946,-117.1523,"Washington","US"],["George",47.0792,-119.8547,"Washington","US"],["Gifford",48.2229,-118.1299,"Washington","US"],["Gig Harbor",47.3786,-122.7,"Washington","US"],["Glenoma",46.5283,-122.099,"Washington","US"],["Glenwood",46.0071,-121.2885,"Washington","US"],["Gold Bar",47.8569,-121.6958,"Washington","US"],["Goldendale",45.832,-120.813,"Washington","US"],["Goose Prairie",46.7311,-120.6983,"Washington","US"],["Graham",47.0246,-122.2936,"Washington","US"],["Grand Coulee",47.9385,-118.9978,"Washington","US"],["Grandview",46.2538,-119.9157,"Washington","US"],["Granger",46.348,-120.1818,"Washington","US"],["Granite Falls",48.079,-121.9428,"Washington","US"],["Grapeview",47.3058,-122.9497,"Washington","US"],["Grayland",46.8532,-124.0562,"Washington","US"],["Grays River",46.3535,-123.5888,"Washington","US"],["Greenacres",47.6584,-117.1568,"Washington","US"],["Greenbank",48.1244,-122.5871,"Washington","US"],["Hamilton",48.5217,-121.9881,"Washington","US"],["Hansville",47.9061,-122.5655,"Washington","US"],["Harrah",46.4104,-120.5736,"Washington","US"],["Harrington",47.4555,-118.2778,"Washington","US"],["Hartline",47.7256,-119.1045,"Washington","US"],["Hay",46.6789,-117.9147,"Washington","US"],["Heisson",45.825,-122.49,"Washington","US"],["Hobart",47.4219,-121.9717,"Washington","US"],["Hoodsport",47.4235,-123.1739,"Washington","US"],["Hooper",46.7544,-118.1469,"Washington","US"],["Hoquiam",46.9823,-123.8842,"Washington","US"],["Humptulips",47.1356,-123.9717,"Washington","US"],["Hunters",48.1333,-118.1525,"Washington","US"],["Husum",45.7994,-121.4858,"Washington","US"],["Ilwaco",46.3142,-124.0282,"Washington","US"],["Inchelium",48.2924,-118.3552,"Washington","US"],["Index",47.8208,-121.5539,"Washington","US"],["Indianola",47.7472,-122.5244,"Washington","US"],["Ione",48.713,-117.4049,"Washington","US"],["Issaquah",47.5509,-122.0335,"Washington","US"],["Joyce",48.1367,-123.7328,"Washington","US"],["Kahlotus",46.6433,-118.5558,"Washington","US"],["Kalama",46.0112,-122.8166,"Washington","US"],["Kapowsin",46.9858,-122.2244,"Washington","US"],["Keller",48.0236,-118.6547,"Washington","US"],["Kelso",46.1485,-122.887,"Washington","US"],["Kenmore",47.7575,-122.2428,"Washington","US"],["Kennewick",46.2109,-119.168,"Washington","US"],["Kent",47.3695,-122.1949,"Washington","US"],["Kettle Falls",48.6364,-118.0548,"Washington","US"],["Keyport",47.7022,-122.6197,"Washington","US"],["Kingston",47.8108,-122.5255,"Washington","US"],["Kirkland",47.6786,-122.1894,"Washington","US"],["Kittitas",46.9833,-120.4158,"Washington","US"],["Klickitat",45.7515,-121.2292,"Washington","US"],["La Center",45.8806,-122.624,"Washington","US"],["La Conner",48.4093,-122.5313,"Washington","US"],["La Grande",46.8344,-122.3175,"Washington","US"],["La Push",47.9089,-124.6353,"Washington","US"],["Lacey",47.024,-122.7827,"Washington","US"],["Lacrosse",46.7717,-117.7703,"Washington","US"],["Lake Stevens",48.0171,-122.0672,"Washington","US"],["Lakebay",47.2474,-122.7427,"Washington","US"],["Lakewood",47.1229,-122.5293,"Washington","US"],["Lamona",47.3594,-118.4814,"Washington","US"],["Lamont",47.173,-117.8302,"Washington","US"],["Langley",48.0187,-122.453,"Washington","US"],["Latah",47.3038,-117.1688,"Washington","US"],["Laurier",48.9989,-118.2231,"Washington","US"],["Leavenworth",47.6438,-120.6748,"Washington","US"],["Lebam",46.5592,-123.5478,"Washington","US"],["Liberty Lake",47.6517,-117.0838,"Washington","US"],["Lilliwaup",47.5128,-123.0631,"Washington","US"],["Lincoln",47.782,-118.481,"Washington","US"],["Lind",46.956,-118.7061,"Washington","US"],["Littlerock",46.9019,-123.0167,"Washington","US"],["Long Beach",46.3774,-124.047,"Washington","US"],["Longbranch",47.2007,-122.7561,"Washington","US"],["Longmire",46.75,-121.8114,"Washington","US"],["Longview",46.1514,-122.9634,"Washington","US"],["Loomis",48.8696,-119.6427,"Washington","US"],["Loon Lake",48.0784,-117.6325,"Washington","US"],["Lopez Island",48.5208,-122.9674,"Washington","US"],["Lummi Island",48.7128,-122.6823,"Washington","US"],["Lyle",45.745,-121.2501,"Washington","US"],["Lyman",48.5257,-122.0162,"Washington","US"],["Lynden",48.9372,-122.4592,"Washington","US"],["Lynnwood",47.8118,-122.2878,"Washington","US"],["Mabton",46.2121,-120.0151,"Washington","US"],["Malaga",47.3553,-120.2086,"Washington","US"],["Malden",47.2289,-117.4717,"Washington","US"],["Malo",48.8186,-118.6237,"Washington","US"],["Malone",46.9606,-123.3256,"Washington","US"],["Malott",48.2828,-119.7056,"Washington","US"],["Manchester",47.5561,-122.5436,"Washington","US"],["Mansfield",47.9021,-119.4053,"Washington","US"],["Manson",47.8958,-120.149,"Washington","US"],["Maple Falls",48.9244,-122.0758,"Washington","US"],["Maple Valley",47.3845,-122.0574,"Washington","US"],["Marblemount",48.5278,-121.4483,"Washington","US"],["Marcus",48.6633,-118.0672,"Washington","US"],["Marlin",47.3209,-119.0909,"Washington","US"],["Marshall",47.565,-117.4983,"Washington","US"],["Marysville",48.0656,-122.1562,"Washington","US"],["Matlock",47.1775,-123.3376,"Washington","US"],["Mattawa",46.6794,-119.9161,"Washington","US"],["Mazama",48.5977,-120.388,"Washington","US"],["Mcchord Afb",47.1286,-122.5231,"Washington","US"],["Mccleary",47.054,-123.2733,"Washington","US"],["Mckenna",46.9361,-122.5544,"Washington","US"],["Mead",47.7933,-117.3117,"Washington","US"],["Medical Lake",47.5837,-117.6794,"Washington","US"],["Medina",47.6211,-122.2264,"Washington","US"],["Menlo",46.6217,-123.6458,"Washington","US"],["Mercer Island",47.5631,-122.2266,"Washington","US"],["Mesa",46.5782,-119.1373,"Washington","US"],["Metaline",48.8506,-117.3897,"Washington","US"],["Metaline Falls",48.8597,-117.3633,"Washington","US"],["Methow",48.09,-120.0059,"Washington","US"],["Mica",47.5538,-117.1637,"Washington","US"],["Mill Creek",47.8603,-122.2031,"Washington","US"],["Milton",47.2483,-122.3155,"Washington","US"],["Mineral",46.7096,-122.1861,"Washington","US"],["Moclips",47.2226,-124.2044,"Washington","US"],["Mohler",47.4811,-118.2533,"Washington","US"],["Monitor",47.4869,-120.4169,"Washington","US"],["Monroe",47.8585,-121.9474,"Washington","US"],["Montesano",47.0901,-123.5006,"Washington","US"],["Morton",46.5581,-122.2496,"Washington","US"],["Moses Lake",47.1374,-119.2891,"Washington","US"],["Mossyrock",46.5131,-122.4789,"Washington","US"],["Mount Vernon",48.4164,-122.3265,"Washington","US"],["Mountlake Terrace",47.7931,-122.304,"Washington","US"],["Moxee",46.5542,-120.3685,"Washington","US"],["Mukilteo",47.9199,-122.3019,"Washington","US"],["Naches",46.7353,-120.8267,"Washington","US"],["Nahcotta",46.4986,-124.0322,"Washington","US"],["Napavine",46.5747,-122.9069,"Washington","US"],["Naselle",46.3528,-123.8044,"Washington","US"],["Neah Bay",48.3683,-124.6236,"Washington","US"],["Neilton",47.4131,-123.8792,"Washington","US"],["Nespelem",48.1672,-118.9736,"Washington","US"],["Newman Lake",47.7274,-117.064,"Washington","US"],["Newport",48.1695,-117.1508,"Washington","US"],["Nine Mile Falls",47.8019,-117.5894,"Washington","US"],["Nooksack",48.9278,-122.3203,"Washington","US"],["Nordland",48.0432,-122.6926,"Washington","US"],["North Bend",47.4755,-121.7571,"Washington","US"],["North Bonneville",45.6375,-121.975,"Washington","US"],["North Lakewood",48.1519,-122.2075,"Washington","US"],["Northport",48.9247,-117.7931,"Washington","US"],["Oak Harbor",48.3151,-122.6374,"Washington","US"],["Oakesdale",47.0806,-117.2803,"Washington","US"],["Oakville",46.8434,-123.2493,"Washington","US"],["Ocean Park",46.5029,-124.0436,"Washington","US"],["Ocean Shores",46.9829,-124.1532,"Washington","US"],["Odessa",47.3395,-118.6983,"Washington","US"],["Okanogan",48.3513,-119.6046,"Washington","US"],["Olalla",47.4241,-122.5745,"Washington","US"],["Olga",48.6555,-122.8362,"Washington","US"],["Olympia",47.0129,-122.8763,"Washington","US"],["Omak",48.4143,-119.5272,"Washington","US"],["Onalaska",46.573,-122.7075,"Washington","US"],["Orcas",48.5981,-122.9433,"Washington","US"],["Orient",48.8661,-118.2017,"Washington","US"],["Orondo",47.6969,-120.1721,"Washington","US"],["Oroville",48.9397,-119.4032,"Washington","US"],["Orting",47.0822,-122.186,"Washington","US"],["Othello",46.7925,-119.3164,"Washington","US"],["Otis Orchards",47.7027,-117.1121,"Washington","US"],["Outlook",46.3525,-120.097,"Washington","US"],["Oysterville",46.5492,-124.0269,"Washington","US"],["Pacific",47.2666,-122.2435,"Washington","US"],["Pacific Beach",47.1981,-124.1588,"Washington","US"],["Packwood",46.65,-121.6553,"Washington","US"],["Palisades",47.4694,-119.8023,"Washington","US"],["Palouse",46.9076,-117.0855,"Washington","US"],["Paradise Inn",46.7183,-121.6706,"Washington","US"],["Parker",46.5011,-120.4642,"Washington","US"],["Pasco",46.2492,-119.1044,"Washington","US"],["Pateros",48.0591,-119.9133,"Washington","US"],["Paterson",45.9911,-119.7559,"Washington","US"],["Pe Ell",46.5656,-123.2852,"Washington","US"],["Peshastin",47.5813,-120.6139,"Washington","US"],["Plymouth",46.0382,-119.503,"Washington","US"],["Point Roberts",48.9879,-123.0555,"Washington","US"],["Pomeroy",46.4698,-117.5993,"Washington","US"],["Port Angeles",48.1065,-123.4384,"Washington","US"],["Port Gamble",47.8544,-122.5825,"Washington","US"],["Port Hadlock",48.0345,-122.7682,"Washington","US"],["Port Ludlow",47.9222,-122.6896,"Washington","US"],["Port Orchard",47.5048,-122.6153,"Washington","US"],["Port Townsend",48.104,-122.7945,"Washington","US"],["Poulsbo",47.7423,-122.6277,"Washington","US"],["Prescott",46.3539,-118.4097,"Washington","US"],["Preston",47.5239,-121.9258,"Washington","US"],["Prosser",46.2232,-119.771,"Washington","US"],["Pullman",46.7352,-117.1729,"Washington","US"],["Puyallup",47.1991,-122.3151,"Washington","US"],["Quilcene",47.8324,-122.8583,"Washington","US"],["Quinault",47.4485,-123.8037,"Washington","US"],["Quincy",47.1976,-119.8459,"Washington","US"],["Rainier",46.8829,-122.6795,"Washington","US"],["Randle",46.5492,-121.8555,"Washington","US"],["Ravensdale",47.4155,-121.9879,"Washington","US"],["Raymond",46.671,-123.6929,"Washington","US"],["Reardan",47.7054,-117.8663,"Washington","US"],["Redmond",47.6718,-122.1232,"Washington","US"],["Redondo",47.3486,-122.3222,"Washington","US"],["Renton",47.4648,-122.2075,"Washington","US"],["Republic",48.6704,-118.6999,"Washington","US"],["Retsil",47.5461,-122.61,"Washington","US"],["Rice",48.4062,-118.1249,"Washington","US"],["Richland",46.2833,-119.2892,"Washington","US"],["Ridgefield",45.7846,-122.6934,"Washington","US"],["Ritzville",47.1315,-118.3958,"Washington","US"],["Riverside",48.4876,-119.5803,"Washington","US"],["Rochester",46.8193,-123.0406,"Washington","US"],["Rock Island",47.3706,-120.1378,"Washington","US"],["Rockford",47.4528,-117.1318,"Washington","US"],["Rockport",48.4704,-121.5554,"Washington","US"],["Rollingbay",47.6647,-122.5089,"Washington","US"],["Ronald",47.2353,-121.0222,"Washington","US"],["Roosevelt",45.8296,-120.3566,"Washington","US"],["Rosalia",47.2218,-117.4147,"Washington","US"],["Rosburg",46.3071,-123.6571,"Washington","US"],["Roslyn",47.2236,-120.9919,"Washington","US"],["Roy",46.956,-122.4483,"Washington","US"],["Royal City",46.9156,-119.5815,"Washington","US"],["Ryderwood",46.3752,-123.0431,"Washington","US"],["Saint John",47.0755,-117.573,"Washington","US"],["Salkum",46.5151,-122.6454,"Washington","US"],["Sammamish",47.6244,-122.0423,"Washington","US"],["Satsop",47.0033,-123.4822,"Washington","US"],["Seabeck",47.6255,-122.8227,"Washington","US"],["Seahurst",47.4694,-122.3608,"Washington","US"],["Seattle",47.6114,-122.3305,"Washington","US"],["Seaview",46.3347,-124.0533,"Washington","US"],["Sedro Woolley",48.5274,-122.2329,"Washington","US"],["Sekiu",48.3032,-124.4685,"Washington","US"],["Selah",46.6767,-120.5408,"Washington","US"],["Sequim",48.0881,-123.1198,"Washington","US"],["Shaw Island",48.5844,-122.9278,"Washington","US"],["Shelton",47.2086,-123.0729,"Washington","US"],["Silvana",48.2025,-122.2525,"Washington","US"],["Silver Creek",46.5491,-122.4757,"Washington","US"],["Silverdale",47.692,-122.7161,"Washington","US"],["Silverlake",46.3163,-122.7649,"Washington","US"],["Skamokawa",46.2952,-123.4332,"Washington","US"],["Skykomish",47.6922,-121.3713,"Washington","US"],["Snohomish",47.8954,-122.0716,"Washington","US"],["Snoqualmie",47.5293,-121.8225,"Washington","US"],["Snoqualmie Pass",47.4097,-121.4058,"Washington","US"],["Soap Lake",47.383,-119.486,"Washington","US"],["South Bend",46.6544,-123.8203,"Washington","US"],["South Cle Elum",47.1858,-120.9478,"Washington","US"],["South Colby",47.5222,-122.5361,"Washington","US"],["South Prairie",47.1394,-122.0969,"Washington","US"],["Southworth",47.5122,-122.5006,"Washington","US"],["Spanaway",47.0732,-122.3943,"Washington","US"],["Spangle",47.4338,-117.3827,"Washington","US"],["Spokane",47.6665,-117.4365,"Washington","US"],["Sprague",47.3247,-117.9897,"Washington","US"],["Springdale",47.9927,-117.8733,"Washington","US"],["Stanwood",48.2011,-122.378,"Washington","US"],["Starbuck",46.5197,-118.1278,"Washington","US"],["Startup",47.8681,-121.7392,"Washington","US"],["Stehekin",48.298,-120.7552,"Washington","US"],["Steilacoom",47.1704,-122.5888,"Washington","US"],["Steptoe",47.0061,-117.355,"Washington","US"],["Stevenson",45.6882,-121.9093,"Washington","US"],["Stratford",47.4272,-119.2819,"Washington","US"],["Sultan",47.8589,-121.7369,"Washington","US"],["Sumas",48.9708,-122.2074,"Washington","US"],["Sumner",47.2033,-122.2392,"Washington","US"],["Sunnyside",46.3213,-120.0126,"Washington","US"],["Suquamish",47.7343,-122.5573,"Washington","US"],["Tacoma",47.2764,-122.7583,"Washington","US"],["Taholah",47.3407,-124.2827,"Washington","US"],["Tahuya",47.4356,-122.9211,"Washington","US"],["Tekoa",47.2271,-117.0819,"Washington","US"],["Tenino",46.8641,-122.8493,"Washington","US"],["Thornton",47.1253,-117.3864,"Washington","US"],["Thorp",47.0178,-120.6786,"Washington","US"],["Tieton",46.7063,-120.7473,"Washington","US"],["Tokeland",46.7469,-124.046,"Washington","US"],["Toledo",46.4396,-122.8266,"Washington","US"],["Tonasket",48.7194,-119.3943,"Washington","US"],["Toppenish",46.3751,-120.3305,"Washington","US"],["Touchet",46.0485,-118.6554,"Washington","US"],["Toutle",46.2956,-122.6477,"Washington","US"],["Tracyton",47.6092,-122.6539,"Washington","US"],["Trout Lake",45.9828,-121.5163,"Washington","US"],["Tumtum",47.8982,-117.699,"Washington","US"],["Tumwater",46.9542,-123.025,"Washington","US"],["Twisp",48.3632,-120.135,"Washington","US"],["Underwood",45.7409,-121.5974,"Washington","US"],["Union",47.3513,-123.0344,"Washington","US"],["Uniontown",46.5258,-117.0908,"Washington","US"],["University Place",47.2054,-122.5336,"Washington","US"],["Usk",48.296,-117.3189,"Washington","US"],["Vader",46.3985,-122.9585,"Washington","US"],["Valley",48.1351,-117.761,"Washington","US"],["Valleyford",47.5292,-117.2686,"Washington","US"],["Vancouver",45.6418,-122.6801,"Washington","US"],["Vantage",46.9967,-120.5467,"Washington","US"],["Vashon",47.4259,-122.4644,"Washington","US"],["Vaughn",47.3309,-122.7736,"Washington","US"],["Veradale",47.6421,-117.1977,"Washington","US"],["Wahkiacus",45.8156,-121.1486,"Washington","US"],["Waitsburg",46.2691,-118.1447,"Washington","US"],["Waldron",48.6878,-123.0356,"Washington","US"],["Walla Walla",46.0614,-118.3315,"Washington","US"],["Wallula",46.0856,-118.9042,"Washington","US"],["Wapato",46.4507,-120.4265,"Washington","US"],["Warden",46.977,-119.0539,"Washington","US"],["Washougal",45.5959,-122.3104,"Washington","US"],["Washtucna",46.8209,-118.2862,"Washington","US"],["Waterville",47.6295,-119.9887,"Washington","US"],["Wauconda",48.8224,-118.9469,"Washington","US"],["Wauna",47.3792,-122.6414,"Washington","US"],["Waverly",47.3354,-117.2331,"Washington","US"],["Wellpinit",47.8697,-117.9856,"Washington","US"],["Wenatchee",47.4253,-120.3273,"Washington","US"],["West Richland",46.3044,-119.3603,"Washington","US"],["Westport",46.8836,-124.1061,"Washington","US"],["White Salmon",45.7551,-121.4795,"Washington","US"],["White Swan",46.3716,-120.7453,"Washington","US"],["Wilbur",47.741,-118.7063,"Washington","US"],["Wilkeson",47.1056,-122.0444,"Washington","US"],["Wilson Creek",47.4233,-119.1197,"Washington","US"],["Winlock",46.494,-122.9158,"Washington","US"],["Winthrop",48.4756,-120.1805,"Washington","US"],["Wishram",45.6575,-120.9656,"Washington","US"],["Woodinville",47.7684,-122.1271,"Washington","US"],["Woodland",45.9219,-122.7126,"Washington","US"],["Yacolt",45.8622,-122.4275,"Washington","US"],["Yakima",46.607,-120.4773,"Washington","US"],["Yelm",46.9206,-122.588,"Washington","US"],["Zillah",46.4158,-120.2662,"Washington","US"],["Lopez Village",48.4815,-122.8905,"Washington","US"],["Roche Harbor",48.6089,-123.1548,"Washington","US"],["100 Mile House",51.6498,-121.2859,"British Columbia","CA"],["Fort St. James",54.456,-124.2627,"British Columbia","CA"],["Abbotsford",49.058,-122.2526,"British Columbia","CA"],["Aberdeen",50.65,-120.3667,"British Columbia","CA"],["Agassiz",49.233,-121.7693,"British Columbia","CA"],["Albion",49.1875,-122.5569,"British Columbia","CA"],["Altamont",49.3408,-123.2025,"British Columbia","CA"],["Anmore",49.3164,-122.8526,"British Columbia","CA"],["Arbutus Ridge",49.2497,-123.1693,"British Columbia","CA"],["Ardmore",48.6385,-123.4693,"British Columbia","CA"],["Armstrong",50.4498,-119.2023,"British Columbia","CA"],["Ashcroft",50.7237,-121.2821,"British Columbia","CA"],["Austin Heights",49.25,-122.8667,"British Columbia","CA"],["Barrière",51.1831,-120.1192,"British Columbia","CA"],["Batchelor Hills",50.7167,-120.3667,"British Columbia","CA"],["Bella Bella",52.1631,-128.144,"British Columbia","CA"],["Big Eddy",51.0,-118.2167,"British Columbia","CA"],["Blind Bay",50.8831,-119.3857,"British Columbia","CA"],["Blueridge",49.3292,-122.9917,"British Columbia","CA"],["Bowen Island",49.3847,-123.3362,"British Columbia","CA"],["Bowser",49.4447,-124.6886,"British Columbia","CA"],["Bradner",49.1,-122.4167,"British Columbia","CA"],["Brentwood Bay",48.5829,-123.4526,"British Columbia","CA"],["Brentwood Park",49.275,-122.9917,"British Columbia","CA"],["Bridgeview",49.2081,-122.8603,"British Columbia","CA"],["Brighouse-City Centre",49.1667,-123.1333,"British Columbia","CA"],["British Properties",49.35,-123.1333,"British Columbia","CA"],["Broadmoor",49.15,-123.1333,"British Columbia","CA"],["Brocklehurst",50.7082,-120.4134,"British Columbia","CA"],["Brookswood",49.0667,-122.6667,"British Columbia","CA"],["Burnaby",49.2664,-122.9526,"British Columbia","CA"],["Burnaby Heights",49.2833,-123.0,"British Columbia","CA"],["Burns Lake",54.2297,-125.7608,"British Columbia","CA"],["Burquitlam",49.2667,-122.8833,"British Columbia","CA"],["Cache Creek",50.8101,-121.3246,"British Columbia","CA"],["Cadboro Bay",48.4667,-123.3,"British Columbia","CA"],["Campbell River",50.0163,-125.2446,"British Columbia","CA"],["Canoe",50.75,-119.2333,"British Columbia","CA"],["Canyon Heights",49.3549,-123.0974,"British Columbia","CA"],["Capitol Hill",49.2833,-122.9833,"British Columbia","CA"],["Cariboo",49.25,-122.8833,"British Columbia","CA"],["Cascade Heights",49.25,-123.0167,"British Columbia","CA"],["Castlegar",49.3232,-117.6583,"British Columbia","CA"],["Caulfeild",49.35,-123.25,"British Columbia","CA"],["Cedar",49.1163,-123.8527,"British Columbia","CA"],["Central Saanich",48.5663,-123.4193,"British Columbia","CA"],["Chase",50.8165,-119.6857,"British Columbia","CA"],["Chase River",49.1333,-123.9167,"British Columbia","CA"],["Chemainus",48.9163,-123.7194,"British Columbia","CA"],["Chetwynd",55.6999,-121.6363,"British Columbia","CA"],["Chilliwack",49.1664,-121.9526,"British Columbia","CA"],["Chineside",49.2667,-122.8333,"British Columbia","CA"],["Christina Lake",49.0397,-118.2085,"British Columbia","CA"],["Clayburn",49.0691,-122.2618,"British Columbia","CA"],["Clearwater",51.6406,-120.0277,"British Columbia","CA"],["Clinton",51.0831,-121.586,"British Columbia","CA"],["Cloverdale",49.108,-122.7276,"British Columbia","CA"],["Coldstream",50.2165,-119.2023,"British Columbia","CA"],["Colwood",48.4329,-123.4859,"British Columbia","CA"],["Comox",49.6829,-124.9361,"British Columbia","CA"],["Connaught Heights",49.2,-122.95,"British Columbia","CA"],["Coombs",49.2996,-124.4195,"British Columbia","CA"],["Coquitlam",49.2846,-122.7822,"British Columbia","CA"],["Cordova Bay",48.5167,-123.3667,"British Columbia","CA"],["Courtenay",49.6866,-124.9936,"British Columbia","CA"],["Cove Cliff",49.3228,-122.9489,"British Columbia","CA"],["Cranbrook",49.4999,-115.7688,"British Columbia","CA"],["Crescent Beach",49.05,-122.8833,"British Columbia","CA"],["Creston",49.0999,-116.5021,"British Columbia","CA"],["Crofton",48.8663,-123.6527,"British Columbia","CA"],["Cultus Lake",49.0667,-121.9667,"British Columbia","CA"],["Cumberland",49.6163,-125.0361,"British Columbia","CA"],["Dallas",50.6665,-120.1692,"British Columbia","CA"],["Dawson Creek",55.7598,-120.2403,"British Columbia","CA"],["Deep Cove",49.3333,-122.95,"British Columbia","CA"],["Delbrook",49.3455,-123.0833,"British Columbia","CA"],["Delta",49.0892,-123.0532,"British Columbia","CA"],["Denman Island",49.5329,-124.8195,"British Columbia","CA"],["Departure Bay",49.2021,-123.9762,"British Columbia","CA"],["Dollarton",49.3167,-122.95,"British Columbia","CA"],["Douglas",49.0028,-122.7356,"British Columbia","CA"],["Dufferin",50.6667,-120.3833,"British Columbia","CA"],["Duncan",48.7829,-123.7027,"British Columbia","CA"],["Dundarave",49.3362,-123.1876,"British Columbia","CA"],["Eagle Ridge",49.2878,-122.8217,"British Columbia","CA"],["East Sooke",48.3664,-123.6836,"British Columbia","CA"],["East Wellington",49.1739,-124.0174,"British Columbia","CA"],["Elkford",50.0153,-114.9235,"British Columbia","CA"],["Ellison",49.9331,-119.3691,"British Columbia","CA"],["Enderby",50.5498,-119.1523,"British Columbia","CA"],["Esquimalt",48.4357,-123.4117,"British Columbia","CA"],["Essondale",49.2297,-122.8111,"British Columbia","CA"],["Fairfield Island",49.1861,-121.9417,"British Columbia","CA"],["Fairfield",48.4167,-123.35,"British Columbia","CA"],["Fernie",49.5,-115.0687,"British Columbia","CA"],["Fleetwood",49.1667,-122.8,"British Columbia","CA"],["Fort Langley",49.1684,-122.58,"British Columbia","CA"],["Fort Nelson",58.8053,-122.7002,"British Columbia","CA"],["Fort St. John",56.2499,-120.8529,"British Columbia","CA"],["Fraser Heights",49.2,-122.7833,"British Columbia","CA"],["French Creek",49.3412,-124.3554,"British Columbia","CA"],["Fruitvale",49.1165,-117.5522,"British Columbia","CA"],["Gabriola",49.1704,-123.8499,"British Columbia","CA"],["Ganges",48.8534,-123.5003,"British Columbia","CA"],["Garden Village",49.2333,-123.0,"British Columbia","CA"],["Gellatly",49.8167,-119.6167,"British Columbia","CA"],["Gibsons",49.3954,-123.5055,"British Columbia","CA"],["Glenbrooke North",49.2167,-122.9167,"British Columbia","CA"],["Glenmore",49.3625,-123.1222,"British Columbia","CA"],["Glenrosa",49.85,-119.6667,"British Columbia","CA"],["Golden",51.3,-116.9689,"British Columbia","CA"],["Gold River",49.7809,-126.0501,"British Columbia","CA"],["Gordon Head",48.4833,-123.3167,"British Columbia","CA"],["Grand Forks",49.0331,-118.4356,"British Columbia","CA"],["Grandview-Woodlands",49.2774,-123.0708,"British Columbia","CA"],["Greendale",49.1167,-122.05,"British Columbia","CA"],["Grindrod",50.6331,-119.1191,"British Columbia","CA"],["Guildford",49.1917,-122.8,"British Columbia","CA"],["Halfmoon Bay",49.5129,-123.9087,"British Columbia","CA"],["Hanceville",51.9192,-123.0446,"British Columbia","CA"],["Haney",49.2167,-122.6,"British Columbia","CA"],["Harbour Chines",49.2667,-122.85,"British Columbia","CA"],["Harbour Village",49.2667,-122.8167,"British Columbia","CA"],["Harrison Hot Springs",49.2997,-121.7859,"British Columbia","CA"],["Hastings-Sunrise",49.2833,-123.0333,"British Columbia","CA"],["Hatzic",49.15,-122.25,"British Columbia","CA"],["Hope",49.383,-121.4414,"British Columbia","CA"],["Hornby Island",49.5345,-124.6692,"British Columbia","CA"],["Horseshoe Bay",49.374,-123.2746,"British Columbia","CA"],["Houston",54.3998,-126.6701,"British Columbia","CA"],["Invermere",50.5167,-116.0354,"British Columbia","CA"],["James Bay",48.4167,-123.3833,"British Columbia","CA"],["Juniper Ridge",50.6667,-120.25,"British Columbia","CA"],["Kamloops",50.6665,-120.3192,"British Columbia","CA"],["Kaslo",49.9166,-116.9189,"British Columbia","CA"],["Keating",48.5667,-123.4,"British Columbia","CA"],["Keith-Lynn",49.3167,-123.0667,"British Columbia","CA"],["Kelowna",49.8831,-119.4857,"British Columbia","CA"],["Kelvin",49.2167,-122.9333,"British Columbia","CA"],["Kensington-Cedar Cottage",49.25,-123.0667,"British Columbia","CA"],["Keremeos",49.1998,-119.8357,"British Columbia","CA"],["Killarney",49.2259,-123.0428,"British Columbia","CA"],["Kimberley",49.6707,-115.9776,"British Columbia","CA"],["Kitimat",54.0524,-128.6534,"British Columbia","CA"],["Kitsilano",49.2667,-123.1667,"British Columbia","CA"],["Koksilah",48.7667,-123.6833,"British Columbia","CA"],["Ladysmith",48.9902,-123.817,"British Columbia","CA"],["Lake Cowichan",48.825,-124.0546,"British Columbia","CA"],["Lakeview Heights",49.8667,-119.5333,"British Columbia","CA"],["Langdale",49.4339,-123.4798,"British Columbia","CA"],["Langford",48.4496,-123.5026,"British Columbia","CA"],["Langley",49.1011,-122.6588,"British Columbia","CA"],["Lincoln Park",49.2833,-122.75,"British Columbia","CA"],["Lions Bay",49.4522,-123.2376,"British Columbia","CA"],["Logan Lake",50.4922,-120.8149,"British Columbia","CA"],["Lower Lonsdale",49.3141,-123.0725,"British Columbia","CA"],["Lumby",50.2498,-118.969,"British Columbia","CA"],["Lynnmour",49.3167,-123.0333,"British Columbia","CA"],["Mackenzie",55.3364,-123.0937,"British Columbia","CA"],["Maillardville",49.2384,-122.8668,"British Columbia","CA"],["Maple Bay",48.8163,-123.6194,"British Columbia","CA"],["Maple Ridge",49.2194,-122.6019,"British Columbia","CA"],["Maplewood",49.3045,-123.0136,"British Columbia","CA"],["Mary Hill",49.2333,-122.7833,"British Columbia","CA"],["Meadowbrook",49.2667,-122.7833,"British Columbia","CA"],["Merritt",50.1123,-120.7942,"British Columbia","CA"],["Metchosin",48.3829,-123.5359,"British Columbia","CA"],["Metrotown",49.225,-123.0,"British Columbia","CA"],["Middlegate",49.2167,-122.95,"British Columbia","CA"],["Mill Bay",48.65,-123.55,"British Columbia","CA"],["Mission",49.133,-122.3026,"British Columbia","CA"],["Mount Currie",50.3167,-122.7167,"British Columbia","CA"],["Mount Lehman",49.1167,-122.3833,"British Columbia","CA"],["Mount Pleasant",49.2667,-123.1,"British Columbia","CA"],["Murrayville",49.0833,-122.6167,"British Columbia","CA"],["Nakusp",50.2499,-117.8023,"British Columbia","CA"],["Nanaimo",49.1664,-123.94,"British Columbia","CA"],["Nelson",49.4999,-117.2855,"British Columbia","CA"],["Newton",49.1333,-122.85,"British Columbia","CA"],["New Westminster",49.2068,-122.9109,"British Columbia","CA"],["Norgate",49.3167,-123.1167,"British Columbia","CA"],["North Cowichan",48.8413,-123.686,"British Columbia","CA"],["North Delta",49.1667,-122.9167,"British Columbia","CA"],["North Kamloops",50.6998,-120.3692,"British Columbia","CA"],["North Saanich",48.6663,-123.4193,"British Columbia","CA"],["North Vancouver",49.3164,-123.0693,"British Columbia","CA"],["Oak Bay",48.4496,-123.3026,"British Columbia","CA"],["Oakridge",49.2333,-123.1167,"British Columbia","CA"],["Okanagan Falls",49.35,-119.5667,"British Columbia","CA"],["Okanagan Mission",49.8167,-119.4833,"British Columbia","CA"],["Oliver",49.1831,-119.5524,"British Columbia","CA"],["Ootischenia",49.2831,-117.6355,"British Columbia","CA"],["Osoyoos",49.0331,-119.4524,"British Columbia","CA"],["Oxford Heights",49.2811,-122.7601,"British Columbia","CA"],["Oyster River",49.8667,-125.1333,"British Columbia","CA"],["Parksville",49.3195,-124.3157,"British Columbia","CA"],["Peachland",49.7686,-119.7463,"British Columbia","CA"],["Pemberton",50.3164,-122.8027,"British Columbia","CA"],["Pemberton Heights",49.3306,-123.1083,"British Columbia","CA"],["Penticton",49.4806,-119.5858,"British Columbia","CA"],["Pitt Meadows",49.2212,-122.6897,"British Columbia","CA"],["Pleasantside",49.2917,-122.85,"British Columbia","CA"],["Port Alberni",49.2413,-124.8028,"British Columbia","CA"],["Port Coquitlam",49.2664,-122.7693,"British Columbia","CA"],["Port Hardy",50.7209,-127.4923,"British Columbia","CA"],["Port McNeill",50.59,-127.0864,"British Columbia","CA"],["Port Moody",49.2812,-122.8246,"British Columbia","CA"],["Powell River",49.8328,-124.5237,"British Columbia","CA"],["Prince George",53.9166,-122.753,"British Columbia","CA"],["Prince Rupert",54.3151,-130.321,"British Columbia","CA"],["Princeton",49.458,-120.5108,"British Columbia","CA"],["Pritchard",50.6831,-119.8191,"British Columbia","CA"],["Puntledge",49.6732,-125.0291,"British Columbia","CA"],["Qualicum Beach",49.3478,-124.4423,"British Columbia","CA"],["Queensborough",49.1833,-122.9333,"British Columbia","CA"],["Queens Park",49.2156,-122.9066,"British Columbia","CA"],["Quesnel",52.9784,-122.4931,"British Columbia","CA"],["Radium Hot Springs",50.6167,-116.0688,"British Columbia","CA"],["Ranch Park",49.2605,-122.8091,"British Columbia","CA"],["Renfrew-Collingwood",49.245,-123.0376,"British Columbia","CA"],["Revelstoke",50.9971,-118.1953,"British Columbia","CA"],["Richmond",49.17,-123.1368,"British Columbia","CA"],["River Springs",49.2833,-122.7667,"British Columbia","CA"],["Roberts Creek",49.4236,-123.6478,"British Columbia","CA"],["Rosedale",49.1833,-121.8,"British Columbia","CA"],["Rossland",49.0831,-117.8022,"British Columbia","CA"],["Royal Oak",48.4833,-123.3833,"British Columbia","CA"],["Royston",49.647,-124.9467,"British Columbia","CA"],["Rutland",49.8998,-119.3857,"British Columbia","CA"],["Ryder Lake",49.1,-121.8833,"British Columbia","CA"],["Saanich",48.5496,-123.3693,"British Columbia","CA"],["Saanichton",48.6,-123.4167,"British Columbia","CA"],["Sahali",50.65,-120.3333,"British Columbia","CA"],["Salmo",49.1955,-117.277,"British Columbia","CA"],["Salmon Arm",50.6998,-119.2691,"British Columbia","CA"],["Saltair",48.9496,-123.7694,"British Columbia","CA"],["Sardis",49.1333,-121.95,"British Columbia","CA"],["Seafair",49.15,-123.1833,"British Columbia","CA"],["Sechelt",49.4751,-123.759,"British Columbia","CA"],["Sentinel Hill",49.3373,-123.146,"British Columbia","CA"],["Seymour Heights",49.325,-123.0,"British Columbia","CA"],["Shaughnessy",49.25,-123.1333,"British Columbia","CA"],["Sicamous",50.8331,-118.9857,"British Columbia","CA"],["Sidney",48.6496,-123.4026,"British Columbia","CA"],["Smithers",54.7804,-127.1743,"British Columbia","CA"],["Sooke",48.3746,-123.7276,"British Columbia","CA"],["South Cambie",49.25,-123.1167,"British Columbia","CA"],["South Slope",49.2167,-123.0,"British Columbia","CA"],["South Surrey",49.05,-122.7917,"British Columbia","CA"],["Sparwood",49.7333,-114.8853,"British Columbia","CA"],["Squamish",49.6992,-123.1563,"British Columbia","CA"],["Strathcona",49.2766,-123.0912,"British Columbia","CA"],["Strawberry Hill",49.1333,-122.8833,"British Columbia","CA"],["Summerland",49.5998,-119.6691,"British Columbia","CA"],["Suncrest",49.2167,-123.0167,"British Columbia","CA"],["Sun Peaks",50.8762,-119.9107,"British Columbia","CA"],["Sunshine Hills",49.1167,-122.9,"British Columbia","CA"],["Surrey",49.1063,-122.8251,"British Columbia","CA"],["Surrey Centre",49.1167,-122.75,"British Columbia","CA"],["Taylor",56.1528,-120.6814,"British Columbia","CA"],["Telkwa",54.697,-127.0535,"British Columbia","CA"],["Terrace",54.5163,-128.6035,"British Columbia","CA"],["Thompson",49.1667,-123.1667,"British Columbia","CA"],["Tillicum",48.45,-123.4,"British Columbia","CA"],["Trail",49.0998,-117.7022,"British Columbia","CA"],["Tsawwassen",49.0167,-123.0833,"British Columbia","CA"],["Tumbler Ridge",55.1303,-120.9942,"British Columbia","CA"],["Ucluelet",48.9415,-125.5464,"British Columbia","CA"],["Union Bay",49.5838,-124.8861,"British Columbia","CA"],["Upper Lynn",49.35,-123.025,"British Columbia","CA"],["Valemount",52.8333,-119.2525,"British Columbia","CA"],["Vancouver",49.2497,-123.1193,"British Columbia","CA"],["Vanderhoof",54.0166,-124.0198,"British Columbia","CA"],["Vedder Crossing",49.1,-121.9667,"British Columbia","CA"],["Vernon",50.2673,-119.2734,"British Columbia","CA"],["Victoria",48.4359,-123.3516,"British Columbia","CA"],["Victoria-Fraserview",49.2167,-123.0667,"British Columbia","CA"],["View Royal",48.4579,-123.4526,"British Columbia","CA"],["Warfield",49.0956,-117.7453,"British Columbia","CA"],["Welcome Beach",49.4796,-123.8924,"British Columbia","CA"],["West End",49.2833,-123.1333,"British Columbia","CA"],["Westmount",49.3451,-123.2182,"British Columbia","CA"],["West Point Grey",49.2667,-123.2,"British Columbia","CA"],["Westridge",49.2833,-122.95,"British Columbia","CA"],["Westsyde",50.7667,-120.35,"British Columbia","CA"],["Whalley",49.1792,-122.8667,"British Columbia","CA"],["Whistler",50.1182,-122.954,"British Columbia","CA"],["White Rock",49.0205,-122.7951,"British Columbia","CA"],["Whonnock",49.1833,-122.4667,"British Columbia","CA"],["Williams Lake",52.1415,-122.1445,"British Columbia","CA"],["Willingdon Heights",49.275,-123.0083,"British Columbia","CA"],["Windsor Park",49.3119,-122.9942,"British Columbia","CA"],["Yennadon",49.233,-122.5859,"British Columbia","CA"],["Youbou",48.8663,-124.2027,"British Columbia","CA"],["Tofino",49.1531,-125.9074,"British Columbia","CA"],["Lillooet",50.6856,-121.942,"British Columbia","CA"],["West Kelowna",49.8625,-119.5833,"British Columbia","CA"],["Madeira Park",49.6197,-124.0232,"British Columbia","CA"],["Kaleden",49.3984,-119.6042,"British Columbia","CA"],["Ladner",49.0894,-123.0824,"British Columbia","CA"],["Steveston",49.1271,-123.1814,"British Columbia","CA"],["Popkum",49.2037,-121.7381,"British Columbia","CA"],["Promontory",49.1035,-121.9352,"British Columbia","CA"],["Yarrow",49.0821,-122.0503,"British Columbia","CA"],["Huntingdon",49.0075,-122.2649,"British Columbia","CA"],["Walnut Grove",49.1647,-122.6404,"British Columbia","CA"],["Aldergrove",49.058,-122.4709,"British Columbia","CA"],["Willoughby",49.1262,-122.68,"British Columbia","CA"],["Cowichan Bay",48.7337,-123.6174,"British Columbia","CA"],["Bella Coola",52.3718,-126.7539,"British Columbia","CA"],["Naramata",49.5951,-119.5944,"British Columbia","CA"],["Nanoose Bay",49.2724,-124.1933,"British Columbia","CA"],["West Vancouver",49.3286,-123.1602,"British Columbia","CA"],["Shawnigan Lake",48.6506,-123.6449,"British Columbia","CA"],["Lantzville",49.2454,-124.0755,"British Columbia","CA"],["Cawston",49.1825,-119.7596,"British Columbia","CA"],["Downtown Vancouver",49.2828,-123.1193,"British Columbia","CA"],["Coal Harbour",49.2898,-123.1232,"British Columbia","CA"],["Yaletown",49.2761,-123.1177,"British Columbia","CA"],["Chinatown",49.28,-123.1056,"British Columbia","CA"],["Aldergrove East",49.0561,-122.4546,"British Columbia","CA"],["Lake Country",50.0088,-119.3967,"British Columbia","CA"],["Fairwinds",49.2759,-124.1278,"British Columbia","CA"],["North Oyster/Yellow Point",49.0481,-123.834,"British Columbia","CA"],["South Pender Harbour",49.622,-124.0248,"British Columbia","CA"],["Denman Island Trust Area",49.5519,-124.7988,"British Columbia","CA"],["Six Mile",48.4577,-123.4609,"British Columbia","CA"],["Spallumcheen",50.4015,-119.2204,"British Columbia","CA"],["Anahim Lake",52.4665,-125.3066,"British Columbia","CA"],["108 Mile Ranch",51.7489,-121.3689,"British Columbia","CA"],["Fairview",49.263,-123.1321,"British Columbia","CA"],["Dunbar-Southlands",49.2422,-123.1884,"British Columbia","CA"],["Marpole",49.2136,-123.1298,"British Columbia","CA"],["Sunset",49.221,-123.0955,"British Columbia","CA"],["Riley Park",49.243,-123.0932,"British Columbia","CA"],["Marlborough",49.2295,-122.9899,"British Columbia","CA"],["Big Bend",49.1977,-122.9784,"British Columbia","CA"],["Morley-Buckingham",49.226,-122.9573,"British Columbia","CA"],["Stride Hill",49.2096,-122.9638,"British Columbia","CA"],["Clinton-Glenwood",49.2121,-122.9796,"British Columbia","CA"],["Kingsway-Beresford",49.2248,-122.964,"British Columbia","CA"],["Oakalla",49.234,-122.9775,"British Columbia","CA"],["Edmonds",49.2139,-122.9399,"British Columbia","CA"],["Lochdale",49.2737,-122.9648,"British Columbia","CA"],["Government Road",49.2521,-122.9437,"British Columbia","CA"],["West Cambie",49.1829,-123.1169,"British Columbia","CA"],["East Cambie",49.1843,-123.0927,"British Columbia","CA"],["Bridgeport",49.1989,-123.1136,"British Columbia","CA"],["Blundell",49.1553,-123.1571,"British Columbia","CA"],["Shellmont",49.1348,-123.0963,"British Columbia","CA"],["East Richmond-Fraser Lands",49.1597,-123.0297,"British Columbia","CA"],["Surrey City Centre",49.1854,-122.8466,"British Columbia","CA"],["Burke Mountain",49.2936,-122.7561,"British Columbia","CA"],["Westwood Plateau",49.3046,-122.7934,"British Columbia","CA"],["Cape Horn",49.2268,-122.8369,"British Columbia","CA"],["Burnside-Gorge",48.4434,-123.3761,"British Columbia","CA"],["Victoria-Downtown",48.4277,-123.361,"British Columbia","CA"],["Fernwood",48.4298,-123.3442,"British Columbia","CA"],["Hillside-Quadra",48.4447,-123.356,"British Columbia","CA"],["Jubilee",48.4303,-123.3283,"British Columbia","CA"],["North Park",48.4343,-123.3536,"British Columbia","CA"],["Oaklands",48.4439,-123.3406,"British Columbia","CA"],["Rockland",48.4222,-123.3361,"British Columbia","CA"],["Gonzales",48.4165,-123.3299,"British Columbia","CA"],["Victoria West",48.4319,-123.3821,"British Columbia","CA"],["Carey",48.4721,-123.3948,"British Columbia","CA"],["Shelbourne",48.453,-123.329,"British Columbia","CA"],["Saanich Core",48.4548,-123.3745,"British Columbia","CA"],["Rural Saanich",48.4973,-123.4288,"British Columbia","CA"],["Kerrisdale",49.2344,-123.1551,"British Columbia","CA"],["Lougheed",49.2481,-122.8924,"British Columbia","CA"],["Harewood",49.1474,-123.9474,"British Columbia","CA"],["South End",49.1519,-123.9339,"British Columbia","CA"],["Central Lonsdale",49.3257,-123.0723,"British Columbia","CA"],["Upper Delbrook",49.3526,-123.0767,"British Columbia","CA"],["Lions Gate",49.3264,-123.122,"British Columbia","CA"],["Capilano",49.3409,-123.107,"British Columbia","CA"],["Highlands",49.3427,-123.0952,"British Columbia","CA"],["Cleveland",49.3569,-123.0875,"British Columbia","CA"],["Norwood Queens",49.341,-123.078,"British Columbia","CA"],["Edgemont Village",49.3381,-123.1014,"British Columbia","CA"],["Carisbrooke",49.3416,-123.065,"British Columbia","CA"],["Central Lynn",49.339,-123.0375,"British Columbia","CA"],["Lynn Canyon",49.34,-123.0222,"British Columbia","CA"],["Boundary",49.3333,-123.0469,"British Columbia","CA"],["Kirkstone",49.3272,-123.0444,"British Columbia","CA"],["West Lynn Terrace",49.3322,-123.0261,"British Columbia","CA"],["Upper West Lynn",49.33,-123.0356,"British Columbia","CA"],["Lower West Lynn",49.3203,-123.0497,"British Columbia","CA"],["South Lynnmour",49.3068,-123.0426,"British Columbia","CA"],["Indian River",49.3226,-122.9612,"British Columbia","CA"],["Tsleil-Waututh",49.3097,-122.9813,"British Columbia","CA"],["Parkway",49.3146,-122.9748,"British Columbia","CA"],["Handsworth",49.3545,-123.1043,"British Columbia","CA"],["Ambleside",49.3278,-123.1437,"British Columbia","CA"],["Chartwell",49.349,-123.1531,"British Columbia","CA"],["Whatcom",49.0414,-122.2399,"British Columbia","CA"],["McKee",49.0615,-122.2415,"British Columbia","CA"],["Townline",49.0621,-122.3601,"British Columbia","CA"],["Historic Downtown",49.0514,-122.2934,"British Columbia","CA"],["McMillan",49.0449,-122.2666,"British Columbia","CA"],["Marshall-McCallum",49.0372,-122.3017,"British Columbia","CA"],["South Clearbrook",49.0406,-122.3279,"British Columbia","CA"],["UDistrict",49.0314,-122.2943,"British Columbia","CA"],["Cedar Valley",49.1617,-122.3105,"British Columbia","CA"],["Hammond",49.2193,-122.6533,"British Columbia","CA"],["Port Haney",49.2123,-122.6047,"British Columbia","CA"],["Little Mountain",49.1806,-121.9221,"British Columbia","CA"],["Chilliwack-Downtown",49.1643,-121.9591,"British Columbia","CA"],["Chilliwack Mountain",49.1621,-122.0131,"British Columbia","CA"],["Eastern Hillsides",49.1427,-121.8286,"British Columbia","CA"],["Quilchena",49.2434,-123.1508,"British Columbia","CA"],["English Bay",49.2846,-123.1425,"British Columbia","CA"],["South Granville",49.2602,-123.1395,"British Columbia","CA"],["Downtown Eastside",49.2818,-123.0935,"British Columbia","CA"],["University Endowment Lands",49.2642,-123.239,"British Columbia","CA"],["Maywood",49.2222,-123.0059,"British Columbia","CA"],["East Hastings",49.2717,-123.0619,"British Columbia","CA"],["Grousewoods",49.3637,-123.097,"British Columbia","CA"],["Smith Creek",49.853,-119.62,"British Columbia","CA"],["Hamilton",49.174,-122.9743,"British Columbia","CA"],["Central Coquitlam",49.2603,-122.8381,"British Columbia","CA"],["College Park",49.282,-122.8786,"British Columbia","CA"],["Inlet Centre",49.2761,-122.8454,"British Columbia","CA"],["Heritage Mountain",49.2908,-122.8319,"British Columbia","CA"],["Seaview",49.2765,-122.869,"British Columbia","CA"],["Twin Creeks",49.3016,-122.8324,"British Columbia","CA"],["Glenayre",49.2744,-122.8756,"British Columbia","CA"],["Coronation Park",49.2799,-122.8188,"British Columbia","CA"],["Mountain Meadows",49.2883,-122.8181,"British Columbia","CA"],["Coquitlam Town Centre",49.277,-122.7967,"British Columbia","CA"],["Coquitlam West",49.257,-122.8788,"British Columbia","CA"],["Hockaday",49.2968,-122.7703,"British Columbia","CA"],["Canyon Springs",49.2915,-122.7954,"British Columbia","CA"],["New Horizons",49.2812,-122.7791,"British Columbia","CA"],["Douglas-Gilpin",49.2444,-122.9822,"British Columbia","CA"],["Cameron",49.2562,-122.9067,"British Columbia","CA"],["Lyndhurst",49.2654,-122.8992,"British Columbia","CA"],["Scott Creek",49.2904,-122.8072,"British Columbia","CA"],["Second Street",49.2237,-122.922,"British Columbia","CA"],["Sapperton",49.2264,-122.8945,"British Columbia","CA"],["Champlain Heights",49.2092,-123.026,"British Columbia","CA"],["Terra Nova",49.1697,-123.189,"British Columbia","CA"],["Garden City",49.1671,-123.1218,"British Columbia","CA"],["McLennan",49.1627,-123.0983,"British Columbia","CA"],["Woodwards",49.1467,-123.1549,"British Columbia","CA"],["Golden Village",49.1878,-123.1282,"British Columbia","CA"],["Ironwood",49.1261,-123.0951,"British Columbia","CA"],["South Arm",49.1403,-123.1248,"British Columbia","CA"],["Brow of the Hill",49.2021,-122.9202,"British Columbia","CA"],["Uptown",49.2121,-122.9193,"British Columbia","CA"],["Victory Heights",49.2355,-122.8998,"British Columbia","CA"],["Glenwood",49.2734,-122.78,"British Columbia","CA"],["Riverwood",49.2558,-122.7358,"British Columbia","CA"],["Musqueam",49.2283,-123.1928,"British Columbia","CA"],["Saint Helen's Park",49.1876,-122.8719,"British Columbia","CA"],["East Clayton",49.1249,-122.7017,"British Columbia","CA"],["West Clayton",49.1291,-122.7157,"British Columbia","CA"],["Renfrew Heights",49.2545,-123.0316,"British Columbia","CA"],["Gastown",49.2851,-123.1117,"British Columbia","CA"],["Marpole South",49.2061,-123.1318,"British Columbia","CA"],["Kits Point",49.2749,-123.1471,"British Columbia","CA"],["Cedar Cove",49.2865,-123.0608,"British Columbia","CA"],["Punjabi Market",49.233,-123.1016,"British Columbia","CA"],["Greektown",49.2641,-123.1757,"British Columbia","CA"],["Univercity",49.2785,-122.905,"British Columbia","CA"],["Wellington",49.2165,-124.0418,"British Columbia","CA"],["Mt Pleasant",49.2624,-123.1002,"British Columbia","CA"],["East Newton North",49.1435,-122.8139,"British Columbia","CA"],["East Newton South",49.1294,-122.809,"British Columbia","CA"],["Aloha Estates",49.1317,-122.6863,"British Columbia","CA"],["Highway 11",49.0358,-122.2836,"British Columbia","CA"],["Davie Village",49.2805,-123.1312,"British Columbia","CA"],["Olympic Village",49.27,-123.1119,"British Columbia","CA"],["Portland",45.5152,-122.6784,"Oregon","US"],["Astoria",46.1879,-123.8313,"Oregon","US"],["Salem",44.9429,-123.0351,"Oregon","US"],["New York",40.7128,-74.006,"New York","US"],["Los Angeles",34.0522,-118.2437,"California","US"],["Chicago",41.8781,-87.6298,"Illinois","US"],["Houston",29.7604,-95.3698,"Texas","US"],["Phoenix",33.4484,-112.074,"Arizona","US"],["Philadelphia",39.9526,-75.1652,"Pennsylvania","US"],["San Antonio",29.4241,-98.4936,"Texas","US"],["San Diego",32.7157,-117.1611,"California","US"],["Dallas",32.7767,-96.797,"Texas","US"],["Austin",30.2672,-97.7431,"Texas","US"],["San Jose",37.3382,-121.8863,"California","US"],["Jacksonville",30.3322,-81.6557,"Florida","US"],["Columbus",39.9612,-82.9988,"Ohio","US"],["Charlotte",35.2271,-80.8431,"North Carolina","US"],["San Francisco",37.7749,-122.4194,"California","US"],["Indianapolis",39.7684,-86.1581,"Indiana","US"],["Denver",39.7392,-104.9903,"Colorado","US"],["Washington",38.9072,-77.0369,"DC","US"],["Boston",42.3601,-71.0589,"Massachusetts","US"],["Nashville",36.1627,-86.7816,"Tennessee","US"],["Oklahoma City",35.4676,-97.5164,"Oklahoma","US"],["Las Vegas",36.1699,-115.1398,"Nevada","US"],["Detroit",42.3314,-83.0458,"Michigan","US"],["Memphis",35.1495,-90.049,"Tennessee","US"],["Louisville",38.2527,-85.7585,"Kentucky","US"],["Milwaukee",43.0389,-87.9065,"Wisconsin","US"],["Baltimore",39.2904,-76.6122,"Maryland","US"],["Albuquerque",35.0844,-106.6504,"New Mexico","US"],["Tucson",32.2226,-110.9747,"Arizona","US"],["Sacramento",38.5816,-121.4944,"California","US"],["Atlanta",33.749,-84.388,"Georgia","US"],["Kansas City",39.0997,-94.5786,"Missouri","US"],["Colorado Springs",38.8339,-104.8214,"Colorado","US"],["Omaha",41.2565,-95.9345,"Nebraska","US"],["Raleigh",35.7796,-78.6382,"North Carolina","US"],["Miami",25.7617,-80.1918,"Florida","US"],["Virginia Beach",36.8529,-75.978,"Virginia","US"],["Oakland",37.8044,-122.2712,"California","US"],["Minneapolis",44.9778,-93.265,"Minnesota","US"],["Tulsa",36.154,-95.9928,"Oklahoma","US"],["New Orleans",29.9511,-90.0715,"Louisiana","US"],["Cleveland",41.4993,-81.6944,"Ohio","US"],["Tampa",27.9506,-82.4572,"Florida","US"],["Honolulu",21.3069,-157.8583,"Hawaii","US"],["St. Louis",38.627,-90.1994,"Missouri","US"],["Pittsburgh",40.4406,-79.9959,"Pennsylvania","US"],["Cincinnati",39.1031,-84.512,"Ohio","US"],["Anchorage",61.2181,-149.9003,"Alaska","US"],["Salt Lake City",40.7608,-111.891,"Utah","US"],["Boise",43.615,-116.2023,"Idaho","US"],["Eugene",44.0521,-123.0868,"Oregon","US"],["Bend",44.0582,-121.3153,"Oregon","US"],["Ashland",42.1946,-122.7095,"Oregon","US"],["Medford",42.3265,-122.8756,"Oregon","US"],["Corvallis",44.5646,-123.262,"Oregon","US"],["Hood River",45.7054,-121.5215,"Oregon","US"],["Bandon",43.119,-124.4084,"Oregon","US"],["Cannon Beach",45.8918,-123.9615,"Oregon","US"],["Reno",39.5296,-119.8138,"Nevada","US"],["Santa Fe",35.687,-105.9378,"New Mexico","US"],["Missoula",46.8721,-113.994,"Montana","US"],["Bozeman",45.677,-111.0429,"Montana","US"],["Billings",45.7833,-108.5007,"Montana","US"],["Whitefish",48.4108,-114.3376,"Montana","US"],["Coeur d'Alene",47.6777,-116.7805,"Idaho","US"],["Sandpoint",48.2766,-116.5535,"Idaho","US"],["Berkeley",37.8715,-122.273,"California","US"],["Palo Alto",37.4419,-122.143,"California","US"],["Santa Cruz",36.9741,-122.0308,"California","US"],["Santa Barbara",34.4208,-119.6982,"California","US"],["Pasadena",34.1478,-118.1445,"California","US"],["Napa",38.2975,-122.2869,"California","US"],["Sonoma",38.2919,-122.458,"California","US"],["Monterey",36.6002,-121.8947,"California","US"],["Carmel",36.5552,-121.9233,"California","US"],["Palm Springs",33.8303,-116.5453,"California","US"],["San Luis Obispo",35.2828,-120.6596,"California","US"],["Eureka",40.8021,-124.1637,"California","US"],["Scottsdale",33.4942,-111.9261,"Arizona","US"],["Sedona",34.8697,-111.761,"Arizona","US"],["Flagstaff",35.1983,-111.6513,"Arizona","US"],["Boulder",40.015,-105.2705,"Colorado","US"],["Fort Collins",40.5853,-105.0844,"Colorado","US"],["Aspen",39.1911,-106.8175,"Colorado","US"],["Durango",37.2753,-107.8801,"Colorado","US"],["Madison",43.0731,-89.4012,"Wisconsin","US"],["Ann Arbor",42.2808,-83.743,"Michigan","US"],["Grand Rapids",42.9634,-85.6681,"Michigan","US"],["Des Moines",41.5868,-93.625,"Iowa","US"],["Lincoln",40.8136,-96.7026,"Nebraska","US"],["Rochester",43.1566,-77.6088,"New York","US"],["Buffalo",42.8864,-78.8784,"New York","US"],["Albany",42.6526,-73.7562,"New York","US"],["Ithaca",42.444,-76.5019,"New York","US"],["Brooklyn",40.6782,-73.9442,"New York","US"],["Hartford",41.7658,-72.6734,"Connecticut","US"],["New Haven",41.3083,-72.9279,"Connecticut","US"],["Providence",41.824,-71.4128,"Rhode Island","US"],["Portland",43.6591,-70.2568,"Maine","US"],["Bar Harbor",44.3876,-68.2039,"Maine","US"],["Burlington",44.4759,-73.2121,"Vermont","US"],["Concord",43.2081,-71.5376,"New Hampshire","US"],["Cambridge",42.3736,-71.1097,"Massachusetts","US"],["Worcester",42.2626,-71.8023,"Massachusetts","US"],["Newark",40.7357,-74.1724,"New Jersey","US"],["Princeton",40.3573,-74.6672,"New Jersey","US"],["Richmond",37.5407,-77.436,"Virginia","US"],["Charlottesville",38.0293,-78.4767,"Virginia","US"],["Asheville",35.5951,-82.5515,"North Carolina","US"],["Durham",35.994,-78.8986,"North Carolina","US"],["Charleston",32.7765,-79.9311,"South Carolina","US"],["Savannah",32.0809,-81.0912,"Georgia","US"],["Orlando",28.5383,-81.3792,"Florida","US"],["Sarasota",27.3364,-82.5307,"Florida","US"],["Naples",26.142,-81.7948,"Florida","US"],["Key West",24.5551,-81.78,"Florida","US"],["Birmingham",33.5186,-86.8104,"Alabama","US"],["Little Rock",34.7465,-92.2896,"Arkansas","US"],["Lexington",38.0406,-84.5037,"Kentucky","US"],["Knoxville",35.9606,-83.9207,"Tennessee","US"],["Chattanooga",35.0456,-85.3097,"Tennessee","US"],["Dayton",39.7589,-84.1916,"Ohio","US"],["St. Paul",44.9537,-93.09,"Minnesota","US"],["Duluth",46.7867,-92.1005,"Minnesota","US"],["Sioux Falls",43.546,-96.7313,"South Dakota","US"],["Rapid City",44.0805,-103.231,"South Dakota","US"],["Fargo",46.8772,-96.7898,"North Dakota","US"],["Cheyenne",41.14,-104.8202,"Wyoming","US"],["Jackson",43.4799,-110.7624,"Wyoming","US"],["Provo",40.2338,-111.6585,"Utah","US"],["Park City",40.6461,-111.498,"Utah","US"],["Moab",38.5733,-109.5498,"Utah","US"],["Toronto",43.6532,-79.3832,"Ontario","CA"],["Ottawa",45.4215,-75.6972,"Ontario","CA"],["Montreal",45.5017,-73.5673,"Quebec","CA"],["Quebec City",46.8139,-71.208,"Quebec","CA"],["Calgary",51.0447,-114.0719,"Alberta","CA"],["Edmonton",53.5461,-113.4938,"Alberta","CA"],["Banff",51.1784,-115.5708,"Alberta","CA"],["Winnipeg",49.8951,-97.1384,"Manitoba","CA"],["Halifax",44.6488,-63.5752,"Nova Scotia","CA"],["Saskatoon",52.1332,-106.67,"Saskatchewan","CA"],["Whitehorse",60.7212,-135.0568,"Yukon","CA"],["Alabama",32.8,-86.8,"Alabama","US"],["Alaska",64.0,-152.0,"Alaska","US"],["Arizona",34.3,-111.7,"Arizona","US"],["Arkansas",34.9,-92.4,"Arkansas","US"],["California",37.2,-119.5,"California","US"],["Colorado",39.0,-105.5,"Colorado","US"],["Connecticut",41.6,-72.7,"Connecticut","US"],["Delaware",39.0,-75.5,"Delaware","US"],["Florida",28.6,-82.4,"Florida","US"],["Georgia",32.6,-83.4,"Georgia","US"],["Hawaii",20.8,-156.3,"Hawaii","US"],["Idaho",44.4,-114.6,"Idaho","US"],["Illinois",40.0,-89.2,"Illinois","US"],["Indiana",39.9,-86.3,"Indiana","US"],["Iowa",42.1,-93.5,"Iowa","US"],["Kansas",38.5,-98.4,"Kansas","US"],["Kentucky",37.5,-85.3,"Kentucky","US"],["Louisiana",31.1,-92.0,"Louisiana","US"],["Maine",45.4,-69.2,"Maine","US"],["Maryland",39.0,-76.8,"Maryland","US"],["Massachusetts",42.3,-71.8,"Massachusetts","US"],["Michigan",44.3,-85.4,"Michigan","US"],["Minnesota",46.3,-94.3,"Minnesota","US"],["Mississippi",32.7,-89.7,"Mississippi","US"],["Missouri",38.4,-92.5,"Missouri","US"],["Montana",47.0,-109.6,"Montana","US"],["Nebraska",41.5,-99.8,"Nebraska","US"],["Nevada",39.3,-116.6,"Nevada","US"],["New Hampshire",43.7,-71.6,"New Hampshire","US"],["New Jersey",40.2,-74.7,"New Jersey","US"],["New Mexico",34.4,-106.1,"New Mexico","US"],["North Carolina",35.5,-79.4,"North Carolina","US"],["North Dakota",47.4,-100.5,"North Dakota","US"],["Ohio",40.3,-82.8,"Ohio","US"],["Oklahoma",35.6,-97.5,"Oklahoma","US"],["Oregon",43.9,-120.6,"Oregon","US"],["Pennsylvania",40.9,-77.8,"Pennsylvania","US"],["Rhode Island",41.7,-71.6,"Rhode Island","US"],["South Carolina",33.9,-80.9,"South Carolina","US"],["South Dakota",44.4,-100.2,"South Dakota","US"],["Tennessee",35.8,-86.4,"Tennessee","US"],["Texas",31.5,-99.3,"Texas","US"],["Utah",39.3,-111.7,"Utah","US"],["Vermont",44.0,-72.7,"Vermont","US"],["Virginia",37.5,-78.9,"Virginia","US"],["Washington",47.4,-120.5,"Washington","US"],["West Virginia",38.6,-80.6,"West Virginia","US"],["Wisconsin",44.6,-89.7,"Wisconsin","US"],["Wyoming",43.0,-107.6,"Wyoming","US"],["Washington, D.C.",38.9,-77.0,"Washington, D.C.","US"],["British Columbia",53.7,-125.0,"British Columbia","CA"],["Alberta",55.0,-115.0,"Alberta","CA"],["Ontario",50.0,-85.0,"Ontario","CA"],["Quebec",52.0,-72.0,"Quebec","CA"],["Manitoba",55.0,-97.0,"Manitoba","CA"],["Nova Scotia",45.0,-63.0,"Nova Scotia","CA"],["Saskatchewan",54.0,-106.0,"Saskatchewan","CA"],["New Brunswick",46.5,-66.0,"New Brunswick","CA"],["Yukon",63.0,-135.0,"Yukon","CA"]],"countries":[["Aruba",["Aruba"]],["Afghanistan",["Afghanistan","Islamic Republic of Afghanistan"]],["Angola",["Angola","Republic of Angola"]],["Anguilla",["Anguilla"]],["Åland Islands",["Åland Islands"]],["Albania",["Albania","Republic of Albania"]],["Andorra",["Andorra","Principality of Andorra"]],["United Arab Emirates",["Abu Dhabi","Dubai","UAE","United Arab Emirates"]],["Argentina",["Argentina","Argentine Republic"]],["Armenia",["Armenia","Republic of Armenia"]],["American Samoa",["American Samoa"]],["Antarctica",["Antarctica"]],["French Southern Territories",["French Southern Territories"]],["Antigua and Barbuda",["Antigua and Barbuda"]],["Australia",["Australia"]],["Austria",["Austria","Republic of Austria"]],["Azerbaijan",["Azerbaijan","Republic of Azerbaijan"]],["Burundi",["Burundi","Republic of Burundi"]],["Belgium",["Belgium","Kingdom of Belgium"]],["Benin",["Benin","Republic of Benin"]],["Bonaire, Sint Eustatius and Saba",["Bonaire, Sint Eustatius and Saba"]],["Burkina Faso",["Burkina Faso"]],["Bangladesh",["Bangladesh","People's Republic of Bangladesh"]],["Bulgaria",["Bulgaria","Republic of Bulgaria"]],["Bahrain",["Bahrain","Kingdom of Bahrain"]],["Bahamas",["Bahamas","Commonwealth of the Bahamas"]],["Bosnia and Herzegovina",["Bosnia and Herzegovina","Republic of Bosnia and Herzegovina"]],["Saint Barthélemy",["Saint Barthélemy"]],["Belarus",["Belarus","Republic of Belarus"]],["Belize",["Belize"]],["Bermuda",["Bermuda"]],["Bolivia",["Bolivia","Bolivia, Plurinational State of","Plurinational State of Bolivia"]],["Brazil",["Brazil","Federative Republic of Brazil"]],["Barbados",["Barbados"]],["Brunei Darussalam",["Brunei","Brunei Darussalam"]],["Bhutan",["Bhutan","Kingdom of Bhutan"]],["Bouvet Island",["Bouvet Island"]],["Botswana",["Botswana","Republic of Botswana"]],["Central African Republic",["Central African Republic"]],["Canada",["Canada"]],["Cocos (Keeling) Islands",["Cocos (Keeling) Islands"]],["Switzerland",["Swiss Confederation","Switzerland"]],["Chile",["Chile","Republic of Chile"]],["China",["China","Mainland China","PRC","People's Republic of China"]],["Côte d'Ivoire",["Côte d'Ivoire","Ivory Coast","Republic of Côte d'Ivoire"]],["Cameroon",["Cameroon","Republic of Cameroon"]],["Congo, The Democratic Republic of the",["Congo","Congo, The Democratic Republic of the","DRC","Democratic Republic of the Congo"]],["Congo",["Congo","Republic of the Congo"]],["Cook Islands",["Cook Islands"]],["Colombia",["Colombia","Republic of Colombia"]],["Comoros",["Comoros","Union of the Comoros"]],["Cabo Verde",["Cabo Verde","Cape Verde","Republic of Cabo Verde"]],["Costa Rica",["Costa Rica","Republic of Costa Rica"]],["Cuba",["Cuba","Republic of Cuba"]],["Curaçao",["Curaçao"]],["Christmas Island",["Christmas Island"]],["Cayman Islands",["Cayman Islands"]],["Cyprus",["Cyprus","Republic of Cyprus"]],["Czechia",["Czech Republic","Czechia"]],["Germany",["Federal Republic of Germany","Germany"]],["Djibouti",["Djibouti","Republic of Djibouti"]],["Dominica",["Commonwealth of Dominica","Dominica"]],["Denmark",["Denmark","Kingdom of Denmark"]],["Dominican Republic",["Dominican Republic"]],["Algeria",["Algeria","People's Democratic Republic of Algeria"]],["Ecuador",["Ecuador","Republic of Ecuador"]],["Egypt",["Arab Republic of Egypt","Egypt"]],["Eritrea",["Eritrea","the State of Eritrea"]],["Western Sahara",["Western Sahara"]],["Spain",["Kingdom of Spain","Spain"]],["Estonia",["Estonia","Republic of Estonia"]],["Ethiopia",["Ethiopia","Federal Democratic Republic of Ethiopia"]],["Finland",["Finland","Republic of Finland"]],["Fiji",["Fiji","Republic of Fiji"]],["Falkland Islands (Malvinas)",["Falkland Islands (Malvinas)"]],["France",["France","French Republic"]],["Faroe Islands",["Faroe Islands"]],["Micronesia, Federated States of",["Federated States of Micronesia","Micronesia, Federated States of"]],["Gabon",["Gabon","Gabonese Republic"]],["United Kingdom",["Britain","England","Great Britain","Northern Ireland","Scotland","U.K.","UK","United Kingdom","United Kingdom of Great Britain and Northern Ireland","Wales"]],["Georgia",["Georgia"]],["Guernsey",["Guernsey"]],["Ghana",["Ghana","Republic of Ghana"]],["Gibraltar",["Gibraltar"]],["Guinea",["Guinea","Republic of Guinea"]],["Guadeloupe",["Guadeloupe"]],["Gambia",["Gambia","Republic of the Gambia"]],["Guinea-Bissau",["Guinea-Bissau","Republic of Guinea-Bissau"]],["Equatorial Guinea",["Equatorial Guinea","Republic of Equatorial Guinea"]],["Greece",["Greece","Hellenic Republic"]],["Grenada",["Grenada"]],["Greenland",["Greenland"]],["Guatemala",["Guatemala","Republic of Guatemala"]],["French Guiana",["French Guiana"]],["Guam",["Guam"]],["Guyana",["Guyana","Republic of Guyana"]],["Hong Kong",["Hong Kong","Hong Kong Special Administrative Region of China"]],["Heard Island and McDonald Islands",["Heard Island and McDonald Islands"]],["Honduras",["Honduras","Republic of Honduras"]],["Croatia",["Croatia","Republic of Croatia"]],["Haiti",["Haiti","Republic of Haiti"]],["Hungary",["Hungary"]],["Indonesia",["Indonesia","Republic of Indonesia"]],["Isle of Man",["Isle of Man"]],["India",["India","Republic of India"]],["British Indian Ocean Territory",["British Indian Ocean Territory"]],["Ireland",["Ireland","Republic of Ireland"]],["Iran",["Iran","Iran, Islamic Republic of","Islamic Republic of Iran"]],["Iraq",["Iraq","Republic of Iraq"]],["Iceland",["Iceland","Republic of Iceland"]],["Israel",["Israel","State of Israel"]],["Italy",["Italian Republic","Italy"]],["Jamaica",["Jamaica"]],["Jersey",["Jersey"]],["Jordan",["Hashemite Kingdom of Jordan","Jordan"]],["Japan",["Japan"]],["Kazakhstan",["Kazakhstan","Republic of Kazakhstan"]],["Kenya",["Kenya","Republic of Kenya"]],["Kyrgyzstan",["Kyrgyz Republic","Kyrgyzstan"]],["Cambodia",["Cambodia","Kingdom of Cambodia"]],["Kiribati",["Kiribati","Republic of Kiribati"]],["Saint Kitts and Nevis",["Saint Kitts and Nevis"]],["South Korea",["Korea","Korea, Republic of","South Korea"]],["Kuwait",["Kuwait","State of Kuwait"]],["Laos",["Lao People's Democratic Republic","Laos"]],["Lebanon",["Lebanese Republic","Lebanon"]],["Liberia",["Liberia","Republic of Liberia"]],["Libya",["Libya"]],["Saint Lucia",["Saint Lucia"]],["Liechtenstein",["Liechtenstein","Principality of Liechtenstein"]],["Sri Lanka",["Democratic Socialist Republic of Sri Lanka","Sri Lanka"]],["Lesotho",["Kingdom of Lesotho","Lesotho"]],["Lithuania",["Lithuania","Republic of Lithuania"]],["Luxembourg",["Grand Duchy of Luxembourg","Luxembourg"]],["Latvia",["Latvia","Republic of Latvia"]],["Macao",["Macao","Macao Special Administrative Region of China","Macau"]],["Saint Martin (French part)",["Saint Martin (French part)"]],["Morocco",["Kingdom of Morocco","Morocco"]],["Monaco",["Monaco","Principality of Monaco"]],["Moldova",["Moldova","Moldova, Republic of","Republic of Moldova"]],["Madagascar",["Madagascar","Republic of Madagascar"]],["Maldives",["Maldives","Republic of Maldives"]],["Mexico",["Mexico","United Mexican States"]],["Marshall Islands",["Marshall Islands","Republic of the Marshall Islands"]],["North Macedonia",["Macedonia","North Macedonia","Republic of North Macedonia"]],["Mali",["Mali","Republic of Mali"]],["Malta",["Malta","Republic of Malta"]],["Myanmar",["Burma","Myanmar","Republic of Myanmar"]],["Montenegro",["Montenegro"]],["Mongolia",["Mongolia"]],["Northern Mariana Islands",["Commonwealth of the Northern Mariana Islands","Northern Mariana Islands"]],["Mozambique",["Mozambique","Republic of Mozambique"]],["Mauritania",["Islamic Republic of Mauritania","Mauritania"]],["Montserrat",["Montserrat"]],["Martinique",["Martinique"]],["Mauritius",["Mauritius","Republic of Mauritius"]],["Malawi",["Malawi","Republic of Malawi"]],["Malaysia",["Malaysia"]],["Mayotte",["Mayotte"]],["Namibia",["Namibia","Republic of Namibia"]],["New Caledonia",["New Caledonia"]],["Niger",["Niger","Republic of the Niger"]],["Norfolk Island",["Norfolk Island"]],["Nigeria",["Federal Republic of Nigeria","Nigeria"]],["Nicaragua",["Nicaragua","Republic of Nicaragua"]],["Niue",["Niue"]],["Netherlands",["Holland","Kingdom of the Netherlands","Netherlands","The Netherlands"]],["Norway",["Kingdom of Norway","Norway"]],["Nepal",["Federal Democratic Republic of Nepal","Nepal"]],["Nauru",["Nauru","Republic of Nauru"]],["New Zealand",["New Zealand"]],["Oman",["Oman","Sultanate of Oman"]],["Pakistan",["Islamic Republic of Pakistan","Pakistan"]],["Panama",["Panama","Republic of Panama"]],["Pitcairn",["Pitcairn"]],["Peru",["Peru","Republic of Peru"]],["Philippines",["Philippines","Republic of the Philippines"]],["Palau",["Palau","Republic of Palau"]],["Papua New Guinea",["Independent State of Papua New Guinea","Papua New Guinea"]],["Poland",["Poland","Republic of Poland"]],["Puerto Rico",["Puerto Rico"]],["North Korea",["Democratic People's Republic of Korea","Korea, Democratic People's Republic of","North Korea"]],["Portugal",["Portugal","Portuguese Republic"]],["Paraguay",["Paraguay","Republic of Paraguay"]],["Palestine, State of",["Palestine, State of","the State of Palestine"]],["French Polynesia",["French Polynesia"]],["Qatar",["Qatar","State of Qatar"]],["Réunion",["Réunion"]],["Romania",["Romania"]],["Russian Federation",["Russia","Russian Federation"]],["Rwanda",["Rwanda","Rwandese Republic"]],["Saudi Arabia",["Kingdom of Saudi Arabia","Saudi Arabia"]],["Sudan",["Republic of the Sudan","Sudan"]],["Senegal",["Republic of Senegal","Senegal"]],["Singapore",["Republic of Singapore","Singapore"]],["South Georgia and the South Sandwich Islands",["South Georgia and the South Sandwich Islands"]],["Saint Helena, Ascension and Tristan da Cunha",["Saint Helena, Ascension and Tristan da Cunha"]],["Svalbard and Jan Mayen",["Svalbard and Jan Mayen"]],["Solomon Islands",["Solomon Islands"]],["Sierra Leone",["Republic of Sierra Leone","Sierra Leone"]],["El Salvador",["El Salvador","Republic of El Salvador"]],["San Marino",["Republic of San Marino","San Marino"]],["Somalia",["Federal Republic of Somalia","Somalia"]],["Saint Pierre and Miquelon",["Saint Pierre and Miquelon"]],["Serbia",["Republic of Serbia","Serbia"]],["South Sudan",["Republic of South Sudan","South Sudan"]],["Sao Tome and Principe",["Democratic Republic of Sao Tome and Principe","Sao Tome and Principe"]],["Suriname",["Republic of Suriname","Suriname"]],["Slovakia",["Slovak Republic","Slovakia"]],["Slovenia",["Republic of Slovenia","Slovenia"]],["Sweden",["Kingdom of Sweden","Sweden"]],["Eswatini",["Eswatini","Kingdom of Eswatini","Swaziland"]],["Sint Maarten (Dutch part)",["Sint Maarten (Dutch part)"]],["Seychelles",["Republic of Seychelles","Seychelles"]],["Syria",["Syria","Syrian Arab Republic"]],["Turks and Caicos Islands",["Turks and Caicos Islands"]],["Chad",["Chad","Republic of Chad"]],["Togo",["Togo","Togolese Republic"]],["Thailand",["Kingdom of Thailand","Thailand"]],["Tajikistan",["Republic of Tajikistan","Tajikistan"]],["Tokelau",["Tokelau"]],["Turkmenistan",["Turkmenistan"]],["Timor-Leste",["Democratic Republic of Timor-Leste","East Timor","Timor-Leste"]],["Tonga",["Kingdom of Tonga","Tonga"]],["Trinidad and Tobago",["Republic of Trinidad and Tobago","Trinidad and Tobago"]],["Tunisia",["Republic of Tunisia","Tunisia"]],["Türkiye",["Republic of Türkiye","Turkey","Turkiye","Türkiye"]],["Tuvalu",["Tuvalu"]],["Taiwan",["Taiwan","Taiwan, Province of China"]],["Tanzania",["Tanzania","Tanzania, United Republic of","United Republic of Tanzania"]],["Uganda",["Republic of Uganda","Uganda"]],["Ukraine",["Ukraine"]],["United States Minor Outlying Islands",["United States Minor Outlying Islands"]],["Uruguay",["Eastern Republic of Uruguay","Uruguay"]],["United States",["America","U.S.","USA","United States","United States of America"]],["Uzbekistan",["Republic of Uzbekistan","Uzbekistan"]],["Holy See (Vatican City State)",["Holy See (Vatican City State)"]],["Saint Vincent and the Grenadines",["Saint Vincent and the Grenadines"]],["Venezuela",["Bolivarian Republic of Venezuela","Venezuela","Venezuela, Bolivarian Republic of"]],["Virgin Islands, British",["British Virgin Islands","Virgin Islands, British"]],["Virgin Islands, U.S.",["Virgin Islands of the United States","Virgin Islands, U.S."]],["Vietnam",["Socialist Republic of Viet Nam","Viet Nam","Vietnam"]],["Vanuatu",["Republic of Vanuatu","Vanuatu"]],["Wallis and Futuna",["Wallis and Futuna"]],["Samoa",["Independent State of Samoa","Samoa"]],["Yemen",["Republic of Yemen","Yemen"]],["South Africa",["Republic of South Africa","South Africa"]],["Zambia",["Republic of Zambia","Zambia"]],["Zimbabwe",["Republic of Zimbabwe","Zimbabwe"]]],"san_juan":["blakely island","deer harbor","eastsound","friday harbor","lopez island","lopez village","olga","orcas","roche harbor","shaw island","waldron"]};
+
+let state = { name: "", email: "", member: false, rows: [] };
+let focusKey = null;
+/* Number fields arrive pre-filled (1 person, 0 nights). The first digit
+   replaces that rather than appending, or tapping the people box and
+   pressing 3 gives 13. Digits after the first append, so 12 still works. */
+let replaceNext = false;
+let dropIndex = -1;   // highlighted suggestion, for arrow keys
+
+function blankRow() {
+  return { place: "", count: "1", paid_nights: "0", free_nights: "0" };
+}
+
+/* ---------- rendering ---------- */
+
+/* Hard limits. Each is a way the page could otherwise be wedged: a number
+   too large to read, a place name that blows out the layout and the storage,
+   or an unbounded list of towns. */
+const MAX_NUM  = 999;
+const MAX_ROWS = 12;
+const MAX_TEXT = { name: 60, email: 80, place: 80 };
+
+function capFor(key) {
+  if (key === "name" || key === "email") return MAX_TEXT[key];
+  return MAX_TEXT.place;
+}
+
+function numCell(key, label) {
+  return '<div class="numcell"><span>' + label + '</span>' +
+    '<div class="stepper">' +
+      '<button class="step" data-step="-1" data-target="' + key + '" ' +
+        'aria-label="one fewer">&minus;</button>' +
+      '<div class="field num" data-key="' + key + '"></div>' +
+      '<button class="step" data-step="1" data-target="' + key + '" ' +
+        'aria-label="one more">+</button>' +
+    '</div></div>';
+}
+
+/* Step a number. Clamped at both ends: holding + can't run away, holding -
+   can't go negative. */
+function bump(key, delta) {
+  const cur = parseInt(valueOf(key), 10) || 0;
+  setValue(key, String(Math.max(0, Math.min(MAX_NUM, cur + delta))));
+  focusKey = key;
+  replaceNext = true;
+  paint();
+}
+
+/* One self-contained block per town, flowing two across. "Add another town"
+   appends a block, so they fill right, then next row left. Below 760px the
+   grid collapses to a single column, which is what a portrait phone or a
+   split-screen iPad gets. */
+function renderRows() {
+  const host = document.getElementById("rows");
+  host.innerHTML = "";
+
+  state.rows.forEach((row, i) => {
+    const el = document.createElement("div");
+    el.className = "town";
+    el.innerHTML =
+      '<div class="town-top">' +
+        '<div class="field" data-key="' + i + '.place"></div>' +
+        (state.rows.length > 1
+          ? '<button class="drop" data-drop="' + i + '" title="Remove this town">&times;</button>'
+          : "") +
+      '</div>' +
+      '<div class="nums">' +
+        numCell(i + ".count",       "How many people from this place?") +
+        numCell(i + ".paid_nights", "Nights in paid lodging") +
+        numCell(i + ".free_nights", "Nights with friends/family") +
+      '</div>';
+    host.appendChild(el);
+  });
+
+  if (state.rows.length < MAX_ROWS) {
+    const add = document.createElement("button");
+    add.className = "addbtn"; add.id = "addrow";
+    add.innerHTML = '<span class="plus">+</span>' +
+                    '<span class="albl">Add another town</span>';
+    host.appendChild(add);
+  }
+
+  paint();
+}
+
+const TOP_FIELDS = ["name", "email"];
+
+function valueOf(key) {
+  if (TOP_FIELDS.includes(key)) return state[key];
+  const [i, field] = key.split(".");
+  return state.rows[+i][field];
+}
+
+function setValue(key, val) {
+  if (TOP_FIELDS.includes(key)) { state[key] = val; return; }
+  const [i, field] = key.split(".");
+  state.rows[+i][field] = val;
+}
+
+function isNumeric(key) {
+  return key && key.includes(".") && !key.endsWith(".place");
+}
+
+function paintMember() {
+  const b = document.getElementById("memberbtn");
+  if (b) b.setAttribute("aria-pressed", state.member ? "true" : "false");
+}
+
+function paint() {
+  paintMember();
+  document.querySelectorAll("[data-key]").forEach(el => {
+    const key = el.dataset.key;
+    const val = valueOf(key);
+    const active = key === focusKey;
+    el.classList.toggle("active", active);
+    if (val === "" && !active) {
+      const hint = key.endsWith(".place") ? "Town, State" : "";
+      el.innerHTML = hint ? '<span class="placeholder">' + hint + "</span>" : "";
+    } else {
+      el.textContent = val;
+      if (active) el.insertAdjacentHTML("beforeend", '<span class="caret"></span>');
+    }
+    if (active) {
+      requestAnimationFrame(() =>
+        el.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+    }
+  });
+  document.querySelectorAll("[data-step]").forEach(b =>
+    b.classList.toggle("on", b.dataset.target === focusKey));
+  fitAddButton();
+  renderDrop();
+}
+
+/* Is the add button sharing a row with a town, or sitting on its own? Measured
+   rather than guessed, because the answer depends on the town count, the
+   screen width and the clamp in .town all at once. Checked with the narrow
+   style off, so the measurement reflects the widest the button would be; if it
+   still shares the row at that width it will certainly share it once narrowed. */
+function fitAddButton() {
+  const add = document.getElementById("addrow");
+  if (!add) return;
+  add.classList.remove("inline");
+  const towns = document.querySelectorAll(".town");
+  const last = towns[towns.length - 1];
+  if (!last) return;
+  if (Math.abs(add.getBoundingClientRect().top -
+               last.getBoundingClientRect().top) < 4) {
+    add.classList.add("inline");
+  }
+}
+
+/* ---------- matching ---------- */
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i), cur = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + c);
+    }
+    [prev, cur] = [cur, prev];
+  }
+  return prev[n];
+}
+
+/* Match quality, higher is better. Same scoring as 50PlusMilesFromFHCalculator. */
+/* "friday harbor" -> "fh". Only built for names of two or more words. */
+function initialsOf(b) {
+  const w = b.split(/[\s.'-]+/).filter(Boolean);
+  return w.length > 1 ? w.map(x => x[0]).join("") : "";
+}
+
+function score(input, name) {
+  const a = input.toLowerCase().trim(), b = (name || "").toLowerCase().trim();
+  if (!a) return 0;
+  if (a === b) return 1.25;
+  if (b.startsWith(a)) return 1;
+  if (a.startsWith(b)) return 0.92;
+  if (b.includes(a)) return 0.8;
+  // Initials, for the shorthand locals use: FH, MV, LA. Scored below every
+  // literal match above, so typing "la" still puts Lacey and Lakewood first
+  // and Los Angeles joins the list rather than taking it over.
+  if (a.length >= 2 && a.length <= 4 && a === initialsOf(b)) return 0.78;
+  return 1 - levenshtein(a, b) / Math.max(a.length, b.length);
+}
+
+const R_MI = 3958.7613;
+function milesFromFH(lat, lon) {
+  const rad = d => d * Math.PI / 180, o = PLACES.origin;
+  const dLat = rad(lat - o.lat), dLon = rad(lon - o.lon);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(rad(o.lat)) * Math.cos(rad(lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R_MI * Math.asin(Math.sqrt(a));
+}
+
+const PROV = { "British Columbia":"BC", "Alberta":"AB", "Ontario":"ON",
+  "Quebec":"QC", "Manitoba":"MB", "Nova Scotia":"NS", "Saskatchewan":"SK",
+  "New Brunswick":"NB", "Yukon":"YT" };
+
+function labelOf(r) {
+  const name = r.name, admin = r.admin1, cc = r.country;
+  // Where the region repeats the name (Ljubljana, Ljubljana) the country
+  // would drop out entirely, so fall back to it.
+  if (!admin || name === admin) {
+    if (cc === "CA") return name + ", Canada";
+    if (r.countryName && r.countryName !== name) return name + ", " + r.countryName;
+    return name;
+  }
+  if (cc === "CA") return name + ", " + (PROV[admin] || admin) + ", Canada";
+  if (cc === "US" || !cc) return name + ", " + admin;
+  // Geocoder rows carry the full country name; prefer it over the code.
+  return name + ", " + admin + ", " + (r.countryName || cc);
+}
+
+/* "Paris, France" -> head "Paris", tail "france". The tail boosts any row
+   whose state or country contains it, so naming the country after the city
+   pulls the right one up. */
+function splitQuery(s) {
+  const p = String(s).split(",");
+  return { head: p[0].trim(), tail: p.slice(1).join(" ").trim().toLowerCase() };
+}
+
+function regionBonus(r, tail) {
+  if (!tail) return 0;
+  const reg = [r.admin1, r.country, r.countryName].filter(Boolean)
+                .join(" ").toLowerCase();
+  if (!reg) return 0;
+  return tail.split(/[\s,]+/).some(w => w.length > 1 && reg.includes(w)) ? 0.15 : 0;
+}
+
+const rowKey = r => [r.name, r.admin1 || r.country].join("|").toLowerCase();
+
+/* With nothing typed yet, offer the closest places first. Almost everyone who
+   signs in from the islands is in this list, and they can tap rather than
+   spell. Built once at load, since it never changes. */
+function townRow(t) {
+  return { name: t[0], latitude: t[1], longitude: t[2],
+           admin1: t[3], country: t[4], _local: true, _s: 0 };
+}
+
+/* Every bundled town that has coordinates, nearest first. */
+let BY_DISTANCE = null;
+function byDistance() {
+  if (!BY_DISTANCE) {
+    BY_DISTANCE = PLACES.towns.filter(t => t[1] != null).map(townRow)
+      .sort((a, b) => milesFromFH(a.latitude, a.longitude) -
+                      milesFromFH(b.latitude, b.longitude));
+  }
+  return BY_DISTANCE;
+}
+
+/* Friday Harbor is the origin, so it sorts first at 0 mi with no special
+   casing. */
+let NEARBY = null;
+function nearbySuggest() {
+  if (!NEARBY) NEARBY = byDistance().slice(0, LIST_MAX);
+  return NEARBY;
+}
+
+/* One letter is not enough for the fuzzy matcher, but it is plenty to filter
+   by: the towns that start with it, nearest first. */
+function nearStartingWith(ch) {
+  const c = ch.toLowerCase();
+  return byDistance().filter(r => r.name.toLowerCase().startsWith(c))
+                     .slice(0, LIST_MAX);
+}
+
+/* LOCAL: the bundled towns, states, provinces and countries. Instant, works
+   offline, tolerates typos anywhere in the word. */
+function localSuggest(input) {
+  const { head, tail } = splitQuery(input);
+  if (head.length < 2) return [];
+  const out = [];
+  for (const t of PLACES.towns) {
+    const r = { name: t[0], latitude: t[1], longitude: t[2],
+                admin1: t[3], country: t[4], _local: true };
+    r._s = score(head, t[0]) + regionBonus(r, tail);
+    if (r._s >= 0.5) out.push(r);
+  }
+  for (const [display, aliases] of PLACES.countries) {
+    let best = 0;
+    for (const a of aliases) best = Math.max(best, score(head, a));
+    if (best >= 0.5) {
+      out.push({ name: display, admin1: "", country: "", countryName: display,
+                 latitude: null, longitude: null, _local: true, _s: best });
+    }
+  }
+  return out.sort((a, b) => b._s - a._s).slice(0, 8);
+}
+
+/* ONLINE: everywhere else, via Open-Meteo. Queried every time rather than
+   held back as a fallback, so Chengdu and Ljubljana get real matches. With
+   no network it returns nothing and the local list stands. */
+async function geocode(name, count, signal) {
+  const url = "https://geocoding-api.open-meteo.com/v1/search?name=" +
+    encodeURIComponent(name) + "&count=" + (count || 10) +
+    "&language=en&format=json";
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error("lookup");
+  return (await res.json()).results || [];
+}
+
+async function onlineSuggest(input, signal) {
+  const { head, tail } = splitQuery(input);
+  if (head.length < 2) return [];
+  const direct = await geocode(head, 10, signal);
+  let pool = direct.slice();
+  if (direct.length < 5 && head.length >= 3) {
+    try {
+      const pre = await geocode(head.slice(0, 3), 10, signal);
+      const seen = new Set(pool.map(r => r.id));
+      pre.forEach(r => { if (!seen.has(r.id)) { seen.add(r.id); pool.push(r); } });
+    } catch (e) {}
+  }
+  return pool.map(r => {
+    r._local = false;
+    r.countryName = r.country;
+    r.country = r.country_code || r.country;
+    r._s = score(head, r.name) + regionBonus(r, tail);
+    return r;
+  }).filter(r => r._s >= 0.34).sort((a, b) => b._s - a._s).slice(0, 8);
+}
+
+/* Merge.
+
+   The list paints from local data immediately, then repaints when the
+   geocoder answers ~300ms later. If that repaint reorders things, the row
+   someone is reaching for moves out from under their finger. Two rules
+   prevent it:
+
+   1. A local match beats an online match of equal textual quality by a clear
+      margin, not a hair. Visitors come from Washington, BC and the larger US
+      cities far more often than from their foreign namesakes, and those are
+      what the local list holds. A better online match still wins:
+      "Chengdu" beats "Cheney" because an exact match outscores a fuzzy one
+      by more than the bonus.
+
+   2. Local rows already on screen stay on screen. A better online match can
+      push them down, never off. */
+const LOCAL_BONUS = 0.15;   // clear margin over an online tie
+const PIN_MIN     = 0.8;    // only pin local rows that actually match
+const KEEP_LOCAL  = 4;
+const LIST_MAX    = 8;
+
+function mergeSuggest(local, online) {
+  const w = r => r._s + (r._local ? LOCAL_BONUS : 0);
+  const d = r => (r.latitude == null ? 1e7 : milesFromFH(r.latitude, r.longitude));
+  const cmp = (a, b) =>
+    Math.abs(w(a) - w(b)) < 0.001 ? d(a) - d(b) : w(b) - w(a);
+
+  // Strong local matches claim slots first, so a flood of online results can't
+  // push them off. Weak fuzzy matches aren't pinned, which is why "Chengdu"
+  // isn't crowded out by "Cheney".
+  const pinned = local.filter(r => r._s >= PIN_MIN).slice(0, KEEP_LOCAL);
+  const claimed = new Set(pinned.map(rowKey));
+
+  const rest = [];
+  local.concat(online).forEach(r => {
+    const k = rowKey(r);
+    if (claimed.has(k)) return;
+    claimed.add(k);
+    rest.push(r);
+  });
+
+  // Pinning guarantees presence, not position; the final sort can still put a
+  // better online match above a pinned local one.
+  return pinned.concat(rest.sort(cmp)).slice(0, LIST_MAX).sort(cmp);
+}
+
+/* ---------- dropdown, anchored under the focused field ----------
+
+   Local results paint immediately so the list never feels laggy. The online
+   lookup is debounced and merged in when it lands, and only if the query
+   hasn't changed since. */
+
+/* Coordinates for geocoder picks, kept so a place outside the bundled list
+   still resolves months later, offline, when the tally runs. Stored
+   alongside the sign-in. */
+const CACHE_KEY = "sjima.places.v1";
+let PLACE_CACHE = {};
+try { PLACE_CACHE = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}") || {}; }
+catch (e) { PLACE_CACHE = {}; }
+
+function rememberPlace(label, info) {
+  PLACE_CACHE[label.toLowerCase()] = info;
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(PLACE_CACHE)); } catch (e) {}
+}
+
+let dropRows = [];
+let lookupSeq = 0;
+let lookupTimer = null;
+let lookupCtl = null;
+
+/* The list is never empty. If nothing matches at all, offer what was typed
+   verbatim, so a town that is in no database can still be entered. */
+function withFallback(rows, query) {
+  const q = query.trim();
+  if (!q || rows.length) return rows;
+  return [{ name: q, admin1: "", country: "", latitude: null, longitude: null,
+            _local: true, _s: 0, _literal: true }];
+}
+
+function paintDrop(rows, pending) {
+  const box = document.getElementById("drop");
+  dropRows = rows;
+  if (!rows.length && !pending) { box.classList.remove("show"); return; }
+  if (dropIndex >= rows.length) dropIndex = rows.length - 1;
+
+  box.innerHTML = '<div class="dhead">Suggestions:</div>' + rows.map((r, i) => {
+    const label = r._literal ? r.name : labelOf(r);
+    let tag = "";
+    if (r._literal) tag = '<span class="mi lit">use as typed</span>';
+    else if (r.latitude != null) {
+      const mi = milesFromFH(r.latitude, r.longitude);
+      tag = '<span class="mi ' + (mi >= PLACES.radius ? "far" : "near") + '">' +
+            Math.floor(mi) + " mi</span>";
+    }
+    return '<button class="opt' + (i === dropIndex ? " sel" : "") +
+           '" data-pick="' + i + '"><span>' + label + "</span>" + tag + "</button>";
+  }).join("") + (pending ? '<div class="opt looking">searching worldwide\u2026</div>' : "");
+
+  const field = document.querySelector('[data-key="' + focusKey + '"]');
+  if (!field) { box.classList.remove("show"); return; }
+  const r = field.getBoundingClientRect();
+  const kbTop = document.querySelector(".kbwrap").getBoundingClientRect().top;
+  box.style.left = r.left + "px";
+  box.style.width = Math.max(r.width, 340) + "px";
+  box.style.top = (r.bottom + 4) + "px";
+  box.style.maxHeight = Math.max(140, kbTop - r.bottom - 12) + "px";
+  box.classList.add("show");
+}
+
+function renderDrop() {
+  const box = document.getElementById("drop");
+  if (!focusKey || !focusKey.endsWith(".place")) {
+    box.classList.remove("show");
+    if (lookupTimer) { clearTimeout(lookupTimer); lookupTimer = null; }
+    return;
+  }
+
+  const query = valueOf(focusKey);
+  const seq = ++lookupSeq;
+
+  if (lookupTimer) { clearTimeout(lookupTimer); lookupTimer = null; }
+  if (lookupCtl) { try { lookupCtl.abort(); } catch (e) {} }
+
+  // Nothing typed: the nearest places, closest first. No lookup to make.
+  const q = query.trim();
+  if (!q) { paintDrop(nearbySuggest(), false); return; }
+  if (q.length === 1) {
+    paintDrop(withFallback(nearStartingWith(q), query), false);
+    return;
+  }
+
+  const local = localSuggest(query);
+  const searching = query.trim().length >= 2;
+  paintDrop(withFallback(local, query), searching);
+  if (!searching) return;
+
+  lookupTimer = setTimeout(async () => {
+    lookupCtl = new AbortController();
+    let online = [];
+    try { online = await onlineSuggest(query, lookupCtl.signal); }
+    catch (e) { online = []; }                 // offline: the local list stands
+    if (seq !== lookupSeq) return;             // query changed since
+    if (!focusKey || valueOf(focusKey) !== query) return;
+    paintDrop(withFallback(mergeSuggest(local, online), query), false);
+  }, 260);
+}
+
+/* ---------- input ---------- */
+
+function type(ch) {
+  if (!focusKey) return;
+  if (isNumeric(focusKey)) {
+    if (!/[0-9]/.test(ch)) return;
+    let v = replaceNext ? "" : valueOf(focusKey);
+    replaceNext = false;
+    if (v === "0") v = "";
+    if (v.length >= 3) return;
+    setValue(focusKey, v + ch);
+  } else {
+    // Auto-capitalise names and places: the on-screen keyboard has no shift
+    // key, so without this everything lands lowercase. Email is left as typed.
+    const cur = valueOf(focusKey);
+    if (cur.length >= capFor(focusKey)) return;
+    const capitalise = focusKey !== "email" &&
+      (cur === "" || /[\s\-'.]$/.test(cur));
+    setValue(focusKey, cur + (capitalise ? ch.toUpperCase() : ch));
+  }
+  dropIndex = -1;
+  paint();
+}
+
+function backspace() {
+  if (!focusKey) return;
+  replaceNext = false;
+  setValue(focusKey, valueOf(focusKey).slice(0, -1));
+  paint();
+}
+
+function clearField() {
+  if (!focusKey) return;
+  replaceNext = false;
+  setValue(focusKey, isNumeric(focusKey) ? "0" : "");
+  paint();
+}
+
+/* Tap away to dismiss.
+
+   Tapping a blank part of the page closes the suggestion list and lets the
+   field go, the way it does in any touch app. Everything that has a job of
+   its own is excluded: the list, the keyboard, the fields, the steppers, the
+   add and member buttons, the header and the review screen. So picking a
+   suggestion, typing, and moving between fields all behave exactly as before,
+   and only a tap on nothing in particular dismisses.
+
+   Nothing typed is lost. The value lives in state, not in the field, so the
+   text is still there when the field is tapped again. */
+const KEEPS_FOCUS = "#drop, .kbwrap, [data-key], [data-step], [data-ch], " +
+                    "[data-num], [data-act], [data-pick], [data-drop], " +
+                    "#addrow, .memberbtn, #review, header, .done";
+
+document.addEventListener("pointerdown", ev => {
+  if (!focusKey) return;
+  const t = ev.target;
+  if (t && t.closest && t.closest(KEEPS_FOCUS)) return;
+  focusKey = null;
+  dropIndex = -1;
+  paint();
+}, { capture: true, passive: true });
+
+/* iOS keyboard guard.
+
+   Nothing on this page is a text-entry element, so iOS should never raise a
+   keyboard. If one does appear (a stray element, a later edit, a keyboard
+   left floating by another app), blurring the focused element dismisses it.
+   Our own buttons are exempt so they still work. */
+document.addEventListener("focusin", ev => {
+  const t = ev.target;
+  // The review screen is allowed real inputs; the kiosk is not.
+  if (t && t.closest && t.closest("#review")) return;
+  if (t && t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) t.blur();
+  if (t && t.isContentEditable) t.blur();
+}, true);
+
+/* A tap can be shorter than the eye catches, so hold the press state for a
+   minimum time rather than releasing it with the finger. */
+const PRESS_MS = 110;
+function pressKey(el) {
+  if (!el || !el.classList.contains("k")) return;
+  el.classList.add("pressed");
+  clearTimeout(el._pressT);
+  el._pressT = setTimeout(() => el.classList.remove("pressed"), PRESS_MS);
+}
+document.addEventListener("pointerdown", ev => {
+  const k = ev.target.closest(".k");
+  if (k) pressKey(k);
+}, { passive: true });
+
+document.querySelectorAll(".krow[data-keys]").forEach(rowEl => {
+  rowEl.dataset.keys.split(" ").forEach(ch => {
+    const b = document.createElement("button");
+    b.className = "k"; b.textContent = ch; b.dataset.ch = ch;
+    rowEl.appendChild(b);
+  });
+});
+
+document.body.addEventListener("click", ev => {
+  const t = ev.target.closest(
+    "[data-step],[data-key],[data-ch],[data-num],[data-act],[data-pick]," +
+    "[data-drop],#addrow");
+  if (!t) return;
+
+  if (t.id === "addrow") {
+    click("key");
+    if (state.rows.length >= MAX_ROWS) return;
+    state.rows.push(blankRow());
+    renderRows();
+    focusKey = (state.rows.length - 1) + ".place";
+    paint();
+    return;
+  }
+  if (t.dataset.step !== undefined) {
+    click("key");
+    // Not lit yet: this tap is the one that brings the pair up.
+    if (!t.classList.contains("on")) {
+      focusKey = t.dataset.target;
+      replaceNext = true;
+      paint();
+      return;
+    }
+    bump(t.dataset.target, +t.dataset.step);
+    return;
+  }
+  if (t.dataset.key !== undefined) {
+    click("key");
+    focusKey = t.dataset.key;
+    replaceNext = isNumeric(focusKey);
+    paint();
+    return;
+  }
+  if (t.dataset.pick !== undefined) {
+    click("key");
+    const r = dropRows[+t.dataset.pick];
+    if (r) {
+      const label = r._literal ? r.name : labelOf(r);
+      setValue(focusKey, label);
+      // Keep the coordinates. A geocoder row isn't in the bundled list, so
+      // without this it reads as "not recognised" when the tally runs.
+      if (r.latitude != null) {
+        rememberPlace(label, { lat: r.latitude, lon: r.longitude,
+                               admin1: r.admin1 || "", country: r.country || "" });
+      }
+    }
+    focusKey = focusKey.split(".")[0] + ".count";
+    replaceNext = true;
+    dropIndex = -1;
+    paint();
+    return;
+  }
+  if (t.dataset.drop !== undefined) {
+    state.rows.splice(+t.dataset.drop, 1);
+    focusKey = null;
+    renderRows();
+    return;
+  }
+  if (t.dataset.ch !== undefined) { click("key"); type(t.dataset.ch); return; }
+  if (t.dataset.num !== undefined) { click("key"); type(t.dataset.num); return; }
+
+  if (t.dataset.act) click("key");
+  switch (t.dataset.act) {
+    case "space": type(" "); break;
+    case "comma": type(", "); break;
+    case "dot":   type("."); break;
+    case "at":    type("@"); break;
+    case "back":  backspace(); break;
+    case "clear": clearField(); break;
+  }
+});
+
+document.getElementById("memberbtn").addEventListener("click", () => {
+  click("key");
+  state.member = !state.member;
+  paintMember();
+});
+
+document.querySelector("main").addEventListener("scroll", renderDrop);
+window.addEventListener("resize", () => { fitAddButton(); renderDrop(); });
+
+let submitting = false;
+document.getElementById("done").addEventListener("click", () => {
+  // A fast double tap, or Enter held down, must not file the same party twice.
+  if (submitting) return;
+  submitting = true;
+  boop();
+  // Nothing is rejected. Whatever is on screen gets stored; working out what
+  // the grant can use happens on the review screen.
+  SUBMISSIONS.push({
+    id: Math.random().toString(36).slice(2, 10),
+    at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+    date: new Date().toLocaleDateString("en-CA"),
+    name: state.name.trim(),
+    email: state.email.trim(),
+    // A ticked box counts the whole party as members. Easier to answer than
+    // "how many of you are members?"
+    members: state.member
+      ? state.rows.reduce((n, r) => n + (parseInt(r.count, 10) || 0), 0) : 0,
+    rows: state.rows.map(r => ({
+      place: r.place.trim(),
+      count: Math.max(1, parseInt(r.count, 10) || 1),
+      paid_nights: parseInt(r.paid_nights, 10) || 0,
+      free_nights: parseInt(r.free_nights, 10) || 0,
+    })),
+  });
+
+  saveStore();
+
+  const t = document.getElementById("thanks");
+  t.classList.add("show");
+  setTimeout(() => {
+    t.classList.remove("show");
+    reset();
+    submitting = false;
+  }, 2200);
+});
+
+function reset() {
+  state = { name: "", email: "", member: false, rows: [blankRow()] };
+  focusKey = null;
+  renderRows();
+  document.querySelector("main").scrollTop = 0;
+}
+
+/* ==========================================================================
+   Key click.
+
+   iPads have no Taptic Engine, so keypress vibration isn't available at any
+   layer on this hardware; iPadOS exposes Keyboard Clicks but not Haptic
+   Feedback, while iPhone exposes both. Audio is the confirmation channel the
+   device actually has.
+
+   Synthesised rather than loaded, to keep the page a single file with
+   nothing to fetch. iOS won't start audio outside a user gesture, so the
+   context is created lazily on the first tap and resumed on every tap in
+   case iOS suspended it.
+   ========================================================================== */
+
+const SOUND_KEY = "sjima.sound.v1";
+let soundOn = true;
+try {
+  const v = localStorage.getItem(SOUND_KEY);
+  if (v !== null) soundOn = v === "1";
+} catch (e) {}
+
+let audioCtx = null;
+let clickBuf = null;
+
+/* One fixed noise sample, generated once and reused for every keypress, so
+   every key sounds identical. Fresh randomness per press makes each tap
+   subtly different, which the ear reads as noise rather than as a click. */
+function buildClickBuffer(ctx) {
+  const len = 0.020;
+  const n = Math.ceil(ctx.sampleRate * len);
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  let seed = 12345;                       // fixed seed -> identical every load
+  for (let i = 0; i < n; i++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    const noise = (seed / 0x3fffffff) - 1;
+    d[i] = noise * Math.pow(1 - i / n, 4.5);   // fast, soft decay
+  }
+  return buf;
+}
+
+/* Returns the context, creating it on the first tap. Both sounds go through
+   here so the iOS gesture and resume rules live in one place. */
+function ensureAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    audioCtx = new AC();
+    clickBuf = buildClickBuffer(audioCtx);
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+function click() {
+  if (!soundOn) return;
+  try {
+    if (!ensureAudio()) return;
+    const t = audioCtx.currentTime;
+    const src = audioCtx.createBufferSource();
+    src.buffer = clickBuf;
+
+    // Low-pass rather than band-pass. The high end is what reads as "clacky",
+    // so roll it off instead of emphasising it. Lands close to the iPad's
+    // own keyboard click.
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 1250;
+    lp.Q.value = 0.7;
+
+    const gain = audioCtx.createGain();
+    const peak = 0.10;   // deliberately quiet
+    gain.gain.setValueAtTime(peak, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.020);
+
+    src.connect(lp); lp.connect(gain); gain.connect(audioCtx.destination);
+    src.start(t); src.stop(t + 0.020);
+  } catch (e) { /* audio is optional; never let it break data entry */ }
+}
+
+/* Submission sound: two short rounded tones, G5 then C6, a rising fourth.
+   Triangle waves rather than sine so they carry across a lobby at low volume,
+   rolled off at 2.6kHz so nothing is shrill. Each note starts slightly flat
+   and glides up over 25ms, which is what makes it read as "boop" rather than
+   as a beep. The whole thing is 300ms, well inside the 2.2s thank-you screen. */
+const BOOP = [
+  /* Hz,  start, length, peak */
+  [ 783.99, 0.000, 0.105, 0.11 ],
+  [1046.50, 0.135, 0.150, 0.12 ],
+];
+
+function boop() {
+  if (!soundOn) return;
+  try {
+    if (!ensureAudio()) return;
+    const t0 = audioCtx.currentTime + 0.01;
+    for (const [hz, at, dur, peak] of BOOP) {
+      const t = t0 + at;
+      const osc = audioCtx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(hz * 0.94, t);
+      osc.frequency.exponentialRampToValueAtTime(hz, t + 0.025);
+
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 2600;
+      lp.Q.value = 0.7;
+
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+      osc.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + dur + 0.02);
+    }
+  } catch (e) { /* audio is optional; never let it break data entry */ }
+}
+
+function setSound(on) {
+  soundOn = on;
+  try { localStorage.setItem(SOUND_KEY, on ? "1" : "0"); } catch (e) {}
+}
+
+/* Reload.
+
+   Guided Access has no address bar and no pull-to-refresh, so without this
+   there is no way to reload at all. Matters most right after a deploy.
+
+   location.reload() can be served from cache, so this navigates to a fresh
+   query string instead, forcing the HTML to be refetched. location.pathname
+   drops any previous ?v= so they don't accumulate. The origin is unchanged,
+   so stored sign-ins survive. */
+function hasEntry() {
+  if (state.name.trim() || state.email.trim()) return true;
+  if (state.member) return true;
+  return state.rows.some(r =>
+    r.place.trim() || r.count !== "1" ||
+    r.paid_nights !== "0" || r.free_nights !== "0");
+}
+
+/* Idle clear.
+
+   A half-filled form left on the screen is one visitor's details sitting in
+   front of whoever steps up next. Three minutes after the last touch it is
+   wiped. The timer only runs when there is something to wipe, and any tap or
+   keystroke anywhere restarts it, so nobody working slowly is ever cut off
+   mid-entry. Submitting clears the form itself, which leaves nothing for the
+   timer to find. */
+const IDLE_MS = 180000;
+let idleTimer = null;
+
+function armIdleTimer() {
+  if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+  if (!hasEntry()) return;
+  idleTimer = setTimeout(() => {
+    idleTimer = null;
+    if (hasEntry()) { reset(); paint(); }
+  }, IDLE_MS);
+}
+
+["pointerdown", "keydown"].forEach(ev =>
+  document.addEventListener(ev, armIdleTimer, { capture: true, passive: true }));
+
+/* One button for both jobs. Reloading clears whatever is on screen, so a
+   separate Clear would have done a subset of this.
+
+   No confirmation. Someone reaches for this with a visitor waiting, and a
+   prompt at that moment is one more thing to read and dismiss. The only thing
+   it can discard is an entry that has not been submitted; every recorded
+   sign-in is in storage and comes straight back after the reload.
+
+   The query string is what forces a real refetch rather than a cached copy,
+   which is what makes this the way to pick up a newly deployed version.
+   location.pathname drops any previous ?v= so they never accumulate, and the
+   origin is unchanged, so the stored sign-ins survive. */
+document.getElementById("refresh").addEventListener("click", () => {
+  click("key");
+  location.replace(location.pathname + "?v=" + Date.now());
+});
+
+reset();
+
+/* ==========================================================================
+   Physical keyboard.
+
+   Visitors use the on-screen keyboard; this is for building and testing, so
+   letters don't have to be clicked one at a time. Both drive the same state.
+
+     letters/digits   type into the focused field
+     Tab / Shift-Tab  move between fields
+     arrows           move through the suggestion list
+     Enter            take the highlighted suggestion, or press Submit
+     Escape           dismiss the suggestions
+   ========================================================================== */
+
+function allKeys() {
+  return [...document.querySelectorAll("[data-key]")].map(el => el.dataset.key);
+}
+
+function flash(selector) {
+  pressKey(document.querySelector(selector));
+}
+
+document.addEventListener("keydown", ev => {
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  const keys = allKeys();
+  const open = document.getElementById("drop").classList.contains("show");
+
+  if (ev.key === "Tab") {
+    ev.preventDefault();
+    const at = keys.indexOf(focusKey);
+    const next = ev.shiftKey
+      ? (at <= 0 ? keys.length - 1 : at - 1)
+      : (at === -1 || at === keys.length - 1 ? 0 : at + 1);
+    focusKey = keys[next];
+    replaceNext = isNumeric(focusKey);
+    dropIndex = -1;
+    paint();
+    return;
+  }
+
+  if (open && (ev.key === "ArrowDown" || ev.key === "ArrowUp")) {
+    ev.preventDefault();
+    const n = document.querySelectorAll(".opt").length;
+    dropIndex = ev.key === "ArrowDown"
+      ? (dropIndex + 1) % n
+      : (dropIndex <= 0 ? n - 1 : dropIndex - 1);
+    renderDrop();
+    const selEl = document.querySelector(".opt.sel");
+    if (selEl) selEl.scrollIntoView({ block: "nearest" });
+    return;
+  }
+
+  if (ev.key === "Escape") {
+    ev.preventDefault();
+    dropIndex = -1;
+    document.getElementById("drop").classList.remove("show");
+    return;
+  }
+
+  if (ev.key === "Enter") {
+    ev.preventDefault();
+    const sel = document.querySelector(".opt.sel") ||
+                (open ? document.querySelector(".opt") : null);
+    if (sel) { sel.click(); dropIndex = -1; return; }
+    document.getElementById("done").click();
+    return;
+  }
+
+  if (ev.key === "Backspace") {
+    ev.preventDefault(); flash('[data-act="back"]'); backspace(); return;
+  }
+
+  if (ev.key.length !== 1) return;           // ignore F-keys, Shift, etc.
+
+  if (!focusKey) {                            // start typing with nothing focused
+    focusKey = "0.place";
+    replaceNext = false;
+  }
+  ev.preventDefault();
+  const low = ev.key.toLowerCase();
+  click("key");
+  if (/[a-z0-9]/.test(low)) flash('.k[data-ch="' + low + '"]');
+  else if (ev.key === " ") flash('[data-act="space"]');
+  type(ev.key);                               // keep the case that was typed
+});
+
+
+/* ==========================================================================
+   Place classification. Same logic as the Python build, in the browser.
+   ========================================================================== */
+
+/* ==========================================================================
+   Storage.
+
+   Sign-ins live in localStorage on the iPad. They survive closing the tab,
+   rebooting and days passing. Safari's "Clear History and Website Data"
+   wipes them, which is the intended reset.
+
+   Two caps bound growth. When either is hit, whole days are dropped oldest
+   first, never a partial day, so the tally table never shows a half-counted
+   date. A 9th-gen iPad gives Safari roughly 5 MB per origin; staying well
+   under that avoids a mid-write quota throw.
+
+   At ~30 sign-ins a day, 1.5 MB is over a year.
+   ========================================================================== */
+
+const STORE_KEY  = "sjima.signins.v1";
+const MAX_BYTES  = 1500000;   // ~30% of Safari's per-origin allowance
+const MAX_DAYS   = 400;
+
+let STORAGE_OK = true;        // false in private browsing
+let SUBMISSIONS = [];
+
+function storageAvailable() {
+  try {
+    localStorage.setItem("sjima.probe", "1");
+    localStorage.removeItem("sjima.probe");
+    return true;
+  } catch (e) { return false; }
+}
+
+/* Storage is the one input this page doesn't control: another tab, a botched
+   restore or a half-finished write can leave anything in there. Every record
+   is rebuilt to a known shape on the way in, so the rest of the code can
+   assume its fields exist. */
+function sanitiseVisit(v) {
+  if (!v || typeof v !== "object") return null;
+  const date = typeof v.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.date)
+    ? v.date : null;
+  if (!date) return null;
+  const rows = Array.isArray(v.rows) ? v.rows : [];
+  const n = x => {
+    const k = parseInt(x, 10);
+    return Number.isFinite(k) ? Math.max(0, Math.min(999, k)) : 0;
+  };
+  const str = (x, cap) => (typeof x === "string" ? x : "").slice(0, cap);
+  return {
+    id: str(v.id, 16) || Math.random().toString(36).slice(2, 10),
+    at: str(v.at, 16),
+    date,
+    name: str(v.name, 60),
+    email: str(v.email, 80),
+    members: n(v.members),
+    rows: rows.filter(r => r && typeof r === "object").map(r => ({
+      place: str(r.place, 80),
+      count: n(r.count),
+      paid_nights: n(r.paid_nights),
+      free_nights: n(r.free_nights),
+    })),
+  };
+}
+
+function loadStore() {
+  if (!STORAGE_OK) return [];
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    const data = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(data)) return [];
+    return data.map(sanitiseVisit).filter(Boolean);
+  } catch (e) {
+    // Corrupt or truncated: set the bad copy aside rather than destroy it.
+    try { localStorage.setItem(STORE_KEY + ".damaged",
+                               localStorage.getItem(STORE_KEY) || ""); } catch (e2) {}
+    return [];
+  }
+}
+
+function storeBytes(list) {
+  return JSON.stringify(list === undefined ? SUBMISSIONS : list).length;
+}
+
+/* Drop whole days, oldest first, until both caps are satisfied. */
+function pruneStore() {
+  const days = [...new Set(SUBMISSIONS.map(v => v.date))].sort();
+  let dropped = 0;
+  while (days.length > MAX_DAYS ||
+         (storeBytes() > MAX_BYTES && days.length > 1)) {
+    const oldest = days.shift();
+    SUBMISSIONS = SUBMISSIONS.filter(v => v.date !== oldest);
+    dropped++;
+  }
+  return dropped;
+}
+
+function saveStore() {
+  if (!STORAGE_OK) return;
+  pruneStore();
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(SUBMISSIONS));
+  } catch (e) {
+    // Quota hit anyway. Shed a quarter of the days and retry once, so the
+    // sign-in in progress still gets recorded.
+    const days = [...new Set(SUBMISSIONS.map(v => v.date))].sort();
+    const cut = days.slice(0, Math.max(1, Math.ceil(days.length / 4)));
+    SUBMISSIONS = SUBMISSIONS.filter(v => !cut.includes(v.date));
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(SUBMISSIONS)); }
+    catch (e2) { STORAGE_OK = false; }
+  }
+}
+
+STORAGE_OK = storageAvailable();
+SUBMISSIONS = loadStore();
+
+const STATE_ABBR = {
+  al:"Alabama",ak:"Alaska",az:"Arizona",ar:"Arkansas",ca:"California",
+  co:"Colorado",ct:"Connecticut",de:"Delaware",fl:"Florida",ga:"Georgia",
+  hi:"Hawaii",id:"Idaho",il:"Illinois",in:"Indiana",ia:"Iowa",ks:"Kansas",
+  ky:"Kentucky",la:"Louisiana",me:"Maine",md:"Maryland",ma:"Massachusetts",
+  mi:"Michigan",mn:"Minnesota",ms:"Mississippi",mo:"Missouri",mt:"Montana",
+  ne:"Nebraska",nv:"Nevada",nh:"New Hampshire",nj:"New Jersey",
+  nm:"New Mexico",ny:"New York",nc:"North Carolina",nd:"North Dakota",
+  oh:"Ohio",ok:"Oklahoma",or:"Oregon",pa:"Pennsylvania",ri:"Rhode Island",
+  sc:"South Carolina",sd:"South Dakota",tn:"Tennessee",tx:"Texas",ut:"Utah",
+  vt:"Vermont",va:"Virginia",wa:"Washington",wv:"West Virginia",
+  wi:"Wisconsin",wy:"Wyoming",dc:"DC",bc:"British Columbia",ab:"Alberta",
+  on:"Ontario",qc:"Quebec",mb:"Manitoba",ns:"Nova Scotia",sk:"Saskatchewan",
+  nb:"New Brunswick",yt:"Yukon",
+};
+
+const CANADIAN = new Set(["British Columbia","Alberta","Ontario","Quebec",
+  "Manitoba","Nova Scotia","Saskatchewan","New Brunswick","Yukon"]);
+
+/* "From SJ Islands" on the tally sheet means San Juan County, not proximity
+   to Friday Harbor. Anacortes is 18 miles out and doesn't count. */
+const SAN_JUAN = new Set(PLACES.san_juan || []);
+
+function normKey(s) {
+  return (s || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[.\-']/g, " ").replace(/\s+/g, " ").trim();
+}
+
+const BY_NAME = {};
+for (const t of PLACES.towns) {
+  const k = normKey(t[0]);
+  (BY_NAME[k] = BY_NAME[k] || []).push(t);
+}
+
+const COUNTRY_BY_ALIAS = {};
+for (const [display, aliases] of PLACES.countries) {
+  for (const a of aliases) COUNTRY_BY_ALIAS[normKey(a)] = display;
+}
+const US_NAMES = new Set(["usa","us","united states","america",
+                          "united states of america"]);
+
+function splitPlace(raw) {
+  const parts = raw.split(",").map(p => p.trim()).filter(Boolean);
+  if (!parts.length) return ["", ""];
+  const head = normKey(parts[0]);
+  for (let i = 1; i < parts.length; i++) {
+    const n = normKey(parts[i]);
+    if (US_NAMES.has(n)) continue;
+    return [head, n];
+  }
+  return [head, ""];
+}
+
+function classify(place) {
+  const raw = (place || "").trim();
+  if (!raw) return { resolved:"", matched:false, fifty:false, away:false,
+                     miles:null, sj:false };
+
+  // A place picked from the online geocoder: its coordinates were stored when
+  // it was chosen, so it resolves properly now even with no network.
+  const cached = PLACE_CACHE[raw.toLowerCase()];
+  if (cached) {
+    const mi = milesFromFH(cached.lat, cached.lon);
+    const us = !cached.country || cached.country === "US";
+    return {
+      resolved: raw, matched: true,
+      fifty: mi >= PLACES.radius,
+      away: !us || cached.admin1 !== "Washington",
+      miles: Math.round(mi * 10) / 10,
+      sj: us && SAN_JUAN.has(normKey((raw.split(",")[0] || "").trim())),
+    };
+  }
+
+  const whole = normKey(raw);
+  const [head, tail] = splitPlace(raw);
+
+  // A bare country: "China", "England", "Holland", "PRC".
+  if (!BY_NAME[whole]) {
+    const c = COUNTRY_BY_ALIAS[whole];
+    if (c) {
+      const intl = c !== "United States";
+      return { resolved:c, matched:true, fifty:true, away:intl, miles:null, sj:false };
+    }
+  }
+
+  // A town with coordinates.
+  let hits = BY_NAME[head];
+  if (hits) {
+    if (tail) {
+      const want = normKey(STATE_ABBR[tail] || tail);
+      const narrowed = hits.filter(h => normKey(h[3]) === want);
+      if (narrowed.length) hits = narrowed;
+    }
+    let best = hits[0], bestMi = milesFromFH(hits[0][1], hits[0][2]);
+    for (const h of hits) {
+      const mi = milesFromFH(h[1], h[2]);
+      if (mi < bestMi) { best = h; bestMi = mi; }
+    }
+    const intl = best[4] !== "US";
+    return {
+      // labelOf takes an object, while the bundled list is packed as arrays.
+      resolved: labelOf({ name: best[0], admin1: best[3], country: best[4] }),
+      matched: true,
+      fifty: bestMi >= PLACES.radius,
+      away: intl || best[3] !== "Washington",
+      miles: Math.round(bestMi * 10) / 10,
+      sj: best[4] === "US" && SAN_JUAN.has(normKey(best[0])),
+    };
+  }
+
+  // Unknown town, known country or state: "Chengdu, China".
+  if (tail) {
+    const headDisp = raw.split(",")[0].trim();
+    const c = COUNTRY_BY_ALIAS[tail];
+    if (c) {
+      const intl = c !== "United States";
+      return { resolved:`${headDisp}, ${c}`, matched:true,
+               fifty:true, away:intl, miles:null, sj:false };
+    }
+    let st = STATE_ABBR[tail];
+    if (!st) {
+      const full = Object.values(STATE_ABBR).find(v => normKey(v) === tail);
+      if (full) st = full;
+    }
+    if (st) {
+      return { resolved:`${headDisp}, ${st}`, matched:true, fifty:true,
+               away: CANADIAN.has(st) || st !== "Washington", miles:null, sj:false };
+    }
+  }
+
+  // Nothing matched: count it, but flag it.
+  return { resolved: raw, matched:false, fifty:true, away:true, miles:null, sj:false };
+}
+
+/* ==========================================================================
+   Review screen
+   ========================================================================== */
+
+function blankTally() {
+  return { visitors:0, sj:0, fifty:0, away:0, paidPeople:0, paidNights:0,
+           freePeople:0, members:0, unplaced:0, review:new Set() };
+}
+
+function addRow(t, row) {
+  // Anyone who taps Submit is in the building, so they count toward overall
+  // attendance even with no town entered. They can't count toward any origin
+  // category, since there's nothing to classify. The categories aren't meant
+  // to sum to the total: there is no bucket for "off-island but under 50
+  // miles".
+  if (!row.place) {
+    t.visitors += row.count;
+    t.unplaced += row.count;
+    return null;
+  }
+  const f = classify(row.place);
+  if (!f.matched) t.review.add(row.place);
+  const n = row.count;
+  t.visitors += n;
+  if (f.sj)    t.sj    += n;
+  if (f.fifty) t.fifty += n;
+  if (f.away)  t.away  += n;
+  if (row.paid_nights) { t.paidPeople += n; t.paidNights += n * row.paid_nights; }
+  if (row.free_nights) t.freePeople += n;
+  return f;
+}
+
+function byDay() {
+  const days = new Map();
+  for (const v of SUBMISSIONS) {
+    if (!inRange(v.date)) continue;
+    if (!days.has(v.date)) days.set(v.date, []);
+    days.get(v.date).push(v);
+  }
+  return days;
+}
+
+function esc(t) {
+  return String(t).replace(/[&<>"]/g, c =>
+    ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+}
+
+/* Tally sheet, one row per day, matching the columns already in use. Grant
+   item codes sit under the headings so the two line up at a glance. */
+const COLS = [
+  ["# of<br>Visitors",            "i.",   "visitors"],
+  ["From SJ<br>Islands",          "",     "sj"],
+  ["50+ miles<br>away",           "ii.",  "fifty"],
+  ["Out of State or<br>International", "ii.a", "away"],
+  ["Paid<br>lodging",             "ii.b", "paidPeople"],
+  ["Total paid<br>lodging nights","ii.d", "paidNights"],
+  ["Unpaid<br>Lodging",           "ii.c", "freePeople"],
+  ["Member of<br>Museum",         "",     "members"],
+];
+
+/* The visible date window. null means every date on file. */
+let RANGE = { from: null, to: null };
+
+function inRange(iso) {
+  if (RANGE.from && iso < RANGE.from) return false;
+  if (RANGE.to   && iso > RANGE.to)   return false;
+  return true;
+}
+
+function rangeNote() {
+  if (!RANGE.from && !RANGE.to) return "";
+  const pretty = iso => new Date(iso + "T12:00:00")
+    .toLocaleDateString(undefined, { month:"long", day:"numeric", year:"numeric" });
+  const what = RANGE.from && RANGE.to
+    ? pretty(RANGE.from) + " to " + pretty(RANGE.to)
+    : RANGE.from ? "on or after " + pretty(RANGE.from)
+                 : "on or before " + pretty(RANGE.to);
+  const kept = new Set(SUBMISSIONS.filter(v => inRange(v.date)).map(v => v.date)).size;
+  return `<div class="rangenote">Showing <b>${what}</b> &mdash; ${kept} day${
+    kept === 1 ? "" : "s"} with sign-ins.</div>`;
+}
+
+function renderReview() {
+  const days = byDay();
+  const grand = blankTally();
+  const dayRows = [];
+
+  for (const [date, visits] of [...days.entries()].sort()) {
+    const t = blankTally();
+    for (const v of visits) {
+      for (const r of v.rows) { addRow(t, r); addRow(grand, r); }
+      // Members is one number for the whole group, not per town.
+      t.members += v.members || 0;
+      grand.members += v.members || 0;
+    }
+    dayRows.push([date, t]);
+  }
+
+  const head = "<tr><th>Day</th>" + COLS.map(([h, code]) =>
+    `<th>${h}${code ? `<em>${code}</em>` : ""}</th>`).join("") + "</tr>";
+
+  /* Weeks run Tuesday to Monday, matching the existing spreadsheet: every
+       week in it ends on a Monday and none contains a Tuesday. Change
+       WEEK_START to shift it: 0 Sunday, 1 Monday, 2 Tuesday. */
+  const WEEK_START = 2;
+  const weekKeyOf = iso => {
+    const d = new Date(iso + "T12:00:00");
+    const back = (d.getDay() - WEEK_START + 7) % 7;
+    d.setDate(d.getDate() - back);
+    return d.toISOString().slice(0, 10);
+  };
+  const weekLabel = k => {
+    const a = new Date(k + "T12:00:00");
+    const b = new Date(a); b.setDate(b.getDate() + 6);
+    const f = d => d.toLocaleDateString(undefined, { month:"short", day:"numeric" });
+    return "Week of " + f(a) + " \u2013 " + f(b);
+  };
+
+  // Days with no sign-ins are never stored, so the last row is the most
+  // recent day with data. That's the row to copy into the spreadsheet, so
+  // mark it rather than leaving it to be found.
+  const latestIso = dayRows.length ? dayRows[dayRows.length - 1][0] : null;
+
+  const body = [];
+  let wk = null, wkTally = null, wkCount = 0;
+  const flushWeek = () => {
+    if (!wkTally) return;
+    // A single-day week would just repeat that row, so skip it.
+    if (wkCount > 1) {
+      body.push('<tr class="wk"><td class="day">' + weekLabel(wk) + "</td>" +
+        COLS.map(([, , k]) => `<td>${wkTally[k]}</td>`).join("") + "</tr>");
+    }
+    body.push('<tr class="gap"><td colspan="' + (COLS.length + 1) + '"></td></tr>');
+  };
+
+  for (const [date, t] of dayRows) {
+    const k = weekKeyOf(date);
+    if (k !== wk) { flushWeek(); wk = k; wkTally = blankTally(); wkCount = 0; }
+    for (const f of Object.keys(wkTally)) {
+      if (typeof wkTally[f] === "number") wkTally[f] += t[f];
+    }
+    wkCount++;
+    const d = new Date(date + "T12:00:00");
+    const label = d.toLocaleDateString(undefined,
+      { weekday:"short", month:"short", day:"numeric" });
+    const latest = date === latestIso;
+    body.push(`<tr class="${latest ? "latest" : ""}"><td class="day">${label}${
+      latest ? ' <em>latest</em>' : ""}</td>` +
+      COLS.map(([, , k2]) => `<td>${t[k2]}</td>`).join("") + "</tr>");
+  }
+  flushWeek();
+
+  const totalRow = `<tr class="grand"><td class="day">Total</td>` +
+    COLS.map(([, , k]) => `<td>${grand[k]}</td>`).join("") + "</tr>";
+
+  const table = dayRows.length
+    ? `<table class="tally">${head}${body.join("")}${totalRow}</table>`
+    : "";
+
+  const bits = [];
+  if (grand.review.size) bits.push(
+    `Counted as 50+ miles but not recognised, so worth a look: <b>${
+      [...grand.review].map(esc).join(", ")}</b>.`);
+  if (grand.unplaced) bits.push(
+    `${grand.unplaced} visitor${grand.unplaced !== 1 ? "s" : ""} left the town blank.
+     ${grand.unplaced !== 1 ? "They are" : "That one is"} counted in
+     <b>#&nbsp;of&nbsp;Visitors</b> but in none of the origin columns, so the
+     columns will not add up to the total. They never do: there is no column
+     for off-island but under 50 miles.`);
+  const note = bits.length ? `<div class="note">${bits.join(" ")}</div>` : "";
+
+  const cards = SUBMISSIONS.filter(v => inRange(v.date))
+      .slice(-SHOW_LIMIT).reverse().map(v => {
+    const rows = v.rows.map(r => {
+      if (!r.place) return `<div class="r">
+        <div class="what"><span class="raw">no town given, counted in attendance only</span></div>
+        <span class="pill">${r.count} ${r.count === 1 ? "person" : "people"}</span></div>`;
+      const f = classify(r.place);
+      const cls = f.matched ? "usable" : "review";
+      const what = f.matched
+        ? esc(f.resolved) + (f.resolved.toLowerCase() !== r.place.toLowerCase()
+            ? ` <span class="raw">&nbsp;&larr; ${esc(r.place)}</span>` : "")
+        : `${esc(r.place)} <span class="raw">&nbsp;not recognised</span>`;
+      const tags = [
+        `${r.count} ${r.count === 1 ? "person" : "people"}`,
+        f.sj ? "San Juan County" : null,
+        f.miles === null ? null : `${Math.floor(f.miles)} mi`,
+        r.paid_nights ? `${r.paid_nights} paid` : null,
+        r.free_nights ? `${r.free_nights} free` : null,
+      ].filter(Boolean).map(x => `<span class="pill">${x}</span>`).join("");
+      return `<div class="r ${cls}"><div class="what">${what}</div>${tags}</div>`;
+    }).join("");
+    const who = v.name ? esc(v.name) : '<span class="anon">no name given</span>';
+    const mem = v.members
+      ? `<span>${v.members} museum member${v.members === 1 ? "" : "s"}</span>` : "";
+    return `<div class="visit" data-vid="${esc(v.id)}">
+      <button class="vhead" type="button" aria-expanded="false">
+        <span class="vchev" aria-hidden="true">&#9656;</span>
+        <span class="who">${who}</span>
+        ${v.email ? `<span>${esc(v.email)}</span>` : ""}${mem}<span>${esc(v.at)}</span>
+      </button>${rows}${visitDetail(v)}</div>`;
+  }).join("");
+
+  document.getElementById("reviewBody").innerHTML =
+    rangeNote() + table + note + storageLine() +
+    (cards ? `<h3 class="rsub">Everyone who signed in${
+               SUBMISSIONS.length > SHOW_LIMIT
+                 ? ` <span class="rnote">(most recent ${SHOW_LIMIT} of ${SUBMISSIONS.length})</span>`
+                 : ""}</h3>${cards}`
+           : '<div class="rempty">Nobody has signed in yet.</div>');
+}
+
+/* Everything stored for one sign-in, exactly as it was entered, plus what the
+   tally made of it. Hidden until the card is tapped. The review screen is
+   re-rendered every time it opens, so these always start closed. */
+function visitDetail(v) {
+  const none = '<span class="anon">not given</span>';
+  const dt = new Date(v.date + "T12:00:00").toLocaleDateString(undefined,
+    { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+  const facts = [
+    ["Signed in", esc(dt) + (v.at ? " at " + esc(v.at) : "")],
+    ["Name", v.name ? esc(v.name) : none],
+    ["Email", v.email ? esc(v.email) : none],
+    ["Museum member", v.members
+      ? `Yes, counted ${v.members} ${v.members === 1 ? "person" : "people"}`
+      : "Not ticked"],
+  ];
+
+  const towns = v.rows.map((r, i) => {
+    const f = classify(r.place);
+    const nights = r.count * r.paid_nights;
+    const bits = [
+      ["Typed", r.place ? esc(r.place) : none],
+      ["Recognised as", r.place
+        ? (f.matched ? esc(f.resolved) : '<span class="anon">not recognised</span>')
+        : none],
+      ["Distance from Friday Harbor",
+        f.miles === null ? '<span class="anon">unknown</span>'
+                         : `${Math.floor(f.miles)} miles`],
+      ["San Juan County", r.place ? (f.sj ? "Yes" : "No") : none],
+      ["50+ miles away", r.place ? (f.fifty ? "Yes" : "No") : none],
+      ["Out of state or international", r.place ? (f.away ? "Yes" : "No") : none],
+      ["People", String(r.count)],
+      ["Nights in paid lodging", String(r.paid_nights)],
+      ["Nights with friends or family", String(r.free_nights)],
+      ["Paid lodging nights counted", r.paid_nights
+        ? `${nights} &nbsp;<span class="raw">(${r.count} &times; ${r.paid_nights})</span>`
+        : "0"],
+    ];
+    return `<div class="vblock"><div class="vbh">Town ${i + 1} of ${v.rows.length}</div>` +
+      bits.map(([k, val]) => `<div class="vrow"><span>${k}</span><span>${val}</span></div>`)
+          .join("") + `</div>`;
+  }).join("");
+
+  const t = blankTally();
+  v.rows.forEach(r => addRow(t, r));
+  t.members = v.members;
+  const contrib = COLS.map(([label, code, key]) =>
+    `<div class="vrow"><span>${label.replace(/<br>/g, " ")}${
+       code ? ` <span class="raw">${code}</span>` : ""}</span><span>${t[key]}</span></div>`
+  ).join("");
+
+  return `<div class="vdetail" hidden>
+    <div class="vblock">` +
+      facts.map(([k, val]) => `<div class="vrow"><span>${k}</span><span>${val}</span></div>`)
+           .join("") + `</div>${towns}
+    <div class="vblock"><div class="vbh">What this sign-in added to the tally</div>${contrib}</div>
+    <div class="vdel"><button type="button" class="delbtn" data-del="${esc(v.id)}"
+      >Delete this sign-in</button></div>
+  </div>`;
+}
+
+const SHOW_LIMIT = 60;
+
+function storageLine() {
+  if (!STORAGE_OK) {
+    return `<div class="note"><b>Nothing is being saved on this iPad.</b>
+      Safari is in private browsing, or storage is blocked. Sign-ins will be
+      lost when this page closes.</div>`;
+  }
+  const bytes = storeBytes();
+  const days = new Set(SUBMISSIONS.map(v => v.date)).size;
+  const pct = Math.min(100, Math.round(bytes / MAX_BYTES * 100));
+
+  return `<div class="storeline">
+    <div class="bar"><i style="width:${Math.max(pct, 1)}%"></i></div>
+    <span>${SUBMISSIONS.length} sign-in${SUBMISSIONS.length === 1 ? "" : "s"}
+      across ${days} day${days === 1 ? "" : "s"} &middot;
+      ${(bytes / 1024).toFixed(0)} KB of ${(MAX_BYTES / 1024 / 1024).toFixed(1)} MB used.
+      Oldest days are removed automatically when it fills.</span>
+  </div>`;
+}
+
+/* Date range */
+const isoOf = d => d.toLocaleDateString("en-CA");
+function applyRange(from, to) {
+  RANGE = { from: from || null, to: to || null };
+  document.getElementById("rFrom").value = RANGE.from || "";
+  document.getElementById("rTo").value   = RANGE.to   || "";
+  renderReview();
+}
+document.getElementById("rApply").addEventListener("click", () => {
+  let f = document.getElementById("rFrom").value || null;
+  let t = document.getElementById("rTo").value || null;
+  // A backwards range would silently show nothing, so swap the ends.
+  if (f && t && f > t) { const x = f; f = t; t = x; }
+  applyRange(f, t);
+});
+document.getElementById("rAll").addEventListener("click", () => applyRange(null, null));
+document.querySelectorAll("[data-range]").forEach(b => {
+  b.addEventListener("click", () => {
+    const v = b.dataset.range;
+    const today = new Date();
+    if (v === "season") {
+      // The lodging-tax reporting year: Jan 1 to today.
+      applyRange(today.getFullYear() + "-01-01", isoOf(today));
+    } else {
+      const back = new Date(today);
+      back.setDate(back.getDate() - (parseInt(v, 10) - 1));
+      applyRange(isoOf(back), isoOf(today));
+    }
+  });
+});
+
+/* Auto-return.
+
+   A visitor who wanders onto the data page has no obvious way back, so after
+   30 seconds without a touch it returns to the sign-in page on its own. The
+   timer only runs while the data page is open; on the sign-in page there is
+   nowhere to return to, so nothing is scheduled and a half-typed entry is
+   never disturbed.
+
+   Staff can switch it off from the data page to read without it jumping away.
+   The choice is remembered on the device. The thank-you screen runs its own
+   separate timer and is not affected either way. */
+const RETURN_KEY = "sjima.autoreturn.v1";
+const RETURN_MS  = 30000;
+
+let autoReturn = true;
+try { autoReturn = localStorage.getItem(RETURN_KEY) !== "off"; } catch (e) {}
+
+let returnTimer = null;
+let modalOpen = false;        // a confirm() is up; don't close behind it
+
+function reviewIsOpen() {
+  return document.getElementById("review").classList.contains("show");
+}
+
+function clearReturnTimer() {
+  if (returnTimer) { clearTimeout(returnTimer); returnTimer = null; }
+}
+
+function armReturnTimer() {
+  clearReturnTimer();
+  if (!autoReturn || !reviewIsOpen() || modalOpen) return;
+  returnTimer = setTimeout(() => {
+    returnTimer = null;
+    if (autoReturn && reviewIsOpen() && !modalOpen) closeReview();
+  }, RETURN_MS);
+}
+
+function openReview() {
+  // Always opens on the full history. A date range someone set earlier is
+  // theirs for that visit only; coming back to a filtered page and mistaking
+  // it for the whole record is how a day goes missing from the report.
+  // applyRange clears the range, resets both date fields and re-renders.
+  applyRange(null, null);
+  document.getElementById("review").classList.add("show");
+  armReturnTimer();
+}
+
+function closeReview() {
+  clearReturnTimer();
+  document.getElementById("review").classList.remove("show");
+}
+
+/* Any touch, key or scroll inside the data page counts as activity. Captured
+   at the document so it still registers on controls that stop propagation. */
+["pointerdown", "keydown", "wheel", "input", "change", "scroll"].forEach(ev =>
+  document.addEventListener(ev, () => { if (reviewIsOpen()) armReturnTimer(); },
+                            { capture: true, passive: true }));
+
+function paintReturnBtn() {
+  const b = document.getElementById("reviewReturn");
+  if (!b) return;
+  b.textContent = autoReturn ? "Auto-return: on" : "Auto-return: off";
+  b.setAttribute("aria-pressed", autoReturn ? "true" : "false");
+  b.title = autoReturn
+    ? "Returns to the sign-in page after 30 seconds without a touch."
+    : "Stays on this page. Turn back on before the desk opens.";
+}
+
+
+document.getElementById("peek").addEventListener("click", ev => {
+  ev.preventDefault();
+  openReview();
+});
+document.getElementById("reviewClose").addEventListener("click", closeReview);
+
+/* Remove one sign-in. The prompt names whose it is, because the cards look
+   alike and the totals move underneath. Deleting re-renders in place rather
+   than reopening the page, so the date range being looked at is kept. */
+function deleteVisit(id) {
+  const v = SUBMISSIONS.find(x => x.id === id);
+  if (!v) { renderReview(); return; }
+  const who = v.name ? v.name : "No name given";
+  const when = new Date(v.date + "T12:00:00").toLocaleDateString(undefined,
+    { month: "long", day: "numeric", year: "numeric" });
+  const people = v.rows.reduce((n, r) => n + r.count, 0);
+
+  modalOpen = true;
+  clearReturnTimer();
+  const ok = confirm("Delete this sign-in?\n\n" + who + "\n" + when +
+                     (v.at ? " at " + v.at : "") + "\n" +
+                     people + (people === 1 ? " person" : " people") +
+                     "\n\nThis cannot be undone, and the totals for that day " +
+                     "will change.");
+  modalOpen = false;
+  armReturnTimer();
+  if (!ok) return;
+
+  const i = SUBMISSIONS.findIndex(x => x.id === id);
+  if (i !== -1) SUBMISSIONS.splice(i, 1);
+  saveStore();
+  renderReview();
+  click("key");
+}
+
+/* Tap a sign-in to see everything it holds. Expanding is an ordinary tap, so
+   the auto-return timer resets with it and still fires 30 seconds later. */
+document.getElementById("reviewBody").addEventListener("click", ev => {
+  const del = ev.target.closest("[data-del]");
+  if (del) { deleteVisit(del.dataset.del); return; }
+
+  const head = ev.target.closest(".vhead");
+  if (!head) return;
+  const open = head.getAttribute("aria-expanded") === "true";
+  head.setAttribute("aria-expanded", open ? "false" : "true");
+  const panel = head.parentElement.querySelector(".vdetail");
+  if (panel) panel.hidden = open;
+  click("key");
+});
+
+document.getElementById("reviewReturn").addEventListener("click", () => {
+  autoReturn = !autoReturn;
+  try { localStorage.setItem(RETURN_KEY, autoReturn ? "on" : "off"); } catch (e) {}
+  paintReturnBtn();
+  armReturnTimer();
+  click("key");
+});
+paintReturnBtn();
+/* Guided Access puts the iPad's own settings out of reach mid-shift, so the
+   click has to be switchable from inside the app. */
+function paintSoundBtn() {
+  const b = document.getElementById("reviewSound");
+  if (b) b.textContent = soundOn ? "Sound: on" : "Sound: off";
+}
+document.getElementById("reviewSound").addEventListener("click", () => {
+  setSound(!soundOn);
+  paintSoundBtn();
+  click("key");
+});
+paintSoundBtn();
+
+document.getElementById("reviewClear").addEventListener("click", () => {
+  const n = SUBMISSIONS.length;
+  if (!n) return;
+  modalOpen = true;
+  clearReturnTimer();
+  const go = confirm("Delete all " + n + " stored sign-ins? This cannot be undone.\n\n" +
+                     "Export first if you still need the numbers.");
+  modalOpen = false;
+  armReturnTimer();
+  if (!go) return;
+  SUBMISSIONS = [];
+  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+  renderReview();
+});
+
+
+document.querySelector(".peek-date").textContent =
+  new Date().toLocaleDateString(undefined,
+    { month: "long", day: "numeric", year: "numeric" });
+
+</script>
+</body>
+</html>
