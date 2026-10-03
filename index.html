@@ -1453,6 +1453,11 @@ function caretLeft(el, i) {
    the magnifier is drawn rather than borrowed. */
 const LOUPE_ZOOM = 1.9, LOUPE_HOLD = 300, LOUPE_SLOP = 8;
 let loupeField = null, loupeOpen = false, loupeTimer = null, loupeStartX = 0;
+/* Set while the magnifier has placed the caret, and cleared by the click that
+   arrives after the finger lifts. Safari reports that click at the point the
+   finger went DOWN, so letting it run would throw the caret back to wherever
+   the drag started — usually the end of the line. */
+let loupePlaced = false;
 
 function loupeEligible(el) {
   return el && el.dataset && el.dataset.key !== undefined &&
@@ -1461,6 +1466,7 @@ function loupeEligible(el) {
 
 function openLoupe(el, x) {
   loupeOpen = true;
+  loupePlaced = true;
   focusKey = el.dataset.key;
   const lo = document.getElementById("loupe");
   // Copy the field's typography property by property. The `font` shorthand
@@ -1507,6 +1513,7 @@ function closeLoupe() {
 }
 
 document.addEventListener("pointerdown", ev => {
+  loupePlaced = false;          // a new press starts from scratch
   const f = ev.target.closest ? ev.target.closest("[data-key]") : null;
   if (!loupeEligible(f)) return;
   loupeField = f; loupeStartX = ev.clientX;
@@ -1620,8 +1627,12 @@ document.body.addEventListener("click", ev => {
     replaceNext = isNumeric(focusKey);
     // Numbers keep appending. Text takes the caret to the tapped character,
     // but only once the field already holds something worth aiming at.
-    caretPos = (isNumeric(focusKey) || !valueOf(focusKey))
-      ? null : indexFromPoint(t, ev.clientX);
+    if (loupePlaced) {
+      loupePlaced = false;        // the magnifier already chose; leave it alone
+    } else {
+      caretPos = (isNumeric(focusKey) || !valueOf(focusKey))
+        ? null : indexFromPoint(t, ev.clientX);
+    }
     paint();
     return;
   }
