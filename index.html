@@ -68,6 +68,7 @@
 
     /* constant across themes */
     --key:     #FFFFFF;
+    --kbbg:    #EFE7EC;   /* the keyboard's own ground    */
     --keyedge: #8B7684;
     --keyface: #EDE4EA;
     --keyink:  #2E1F29;
@@ -77,7 +78,7 @@
 
   html, body {
     margin: 0; height: 100%; overflow: hidden; overflow-x: hidden;
-    background: var(--paper); color: var(--ink);
+    background: var(--kbbg); color: var(--ink);
     font-family: "Inter", "Segoe UI", "DejaVu Sans", system-ui, sans-serif;
     font-size: 20px;
     -webkit-user-select: none; user-select: none;
@@ -87,7 +88,13 @@
     overscroll-behavior: none;        /* no rubber-band bounce            */
   }
 
-  #app { display: flex; flex-direction: column; height: 100%; }
+  /* Pinned to the viewport rather than sized at 100%, so it cannot come up a
+     fraction short. #review and #thanks sit above it on their own z-index. */
+  #app {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    background: var(--paper);
+  }
 
   /* ---------- masthead ---------- */
   header {
@@ -287,6 +294,25 @@
     animation: blink 1.1s step-end infinite;
   }
   @keyframes blink { 50% { opacity: 0; } }
+  /* Rides above the finger during a press-and-drag, showing the letters either
+     side of the caret at nearly twice size. Never takes a tap itself. */
+  #loupe {
+    position: fixed; z-index: 80; display: none; pointer-events: none;
+    width: 12rem; height: 3.2rem; border-radius: 999px;
+    background: var(--panel); border: 2px solid var(--go);
+    box-shadow: 0 8px 22px rgba(74, 33, 64, .32);
+    overflow: hidden;
+  }
+  #loupe.show { display: block; }
+  #loupe .lwrap { position: absolute; inset: 0; display: flex; align-items: center; }
+  #loupe .lz {
+    position: relative; white-space: pre; transform-origin: left center;
+    font-weight: 600; color: var(--ink);
+  }
+  #loupe .lcaret {
+    position: absolute; left: 50%; top: 50%; width: 3px; height: 1.6rem;
+    margin: -.8rem 0 0 -1px; background: var(--focus);
+  }
   @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
 
   .drop {
@@ -399,7 +425,7 @@
   .done:active { transform: translateY(4px); box-shadow: none; }
 
   /* ---------- keyboard ---------- */
-  .kbwrap { flex: none; background: #EFE7EC; border-top: 2px solid var(--keyedge);
+  .kbwrap { flex: none; background: var(--kbbg); border-top: 2px solid var(--keyedge);
             min-height: 286px; }
   .kb { padding: .35rem .7rem .45rem;
         padding-bottom: calc(.55rem + env(safe-area-inset-bottom, 0px));
@@ -758,6 +784,14 @@
 
 <div id="drop"></div>
 
+<!-- The magnifier. iOS draws its own for real text inputs, but a real input
+     would summon the system keyboard, which is the one thing this kiosk must
+     never do, so this is ours. -->
+<div id="loupe" aria-hidden="true">
+  <div class="lwrap"><span class="lz"></span></div>
+  <div class="lcaret"></div>
+</div>
+
 
 <div id="review">
   <header>
@@ -927,11 +961,17 @@ function paint() {
     if (val === "" && !active) {
       const hint = key.endsWith(".place") ? "Town, State" : "";
       el.innerHTML = hint ? '<span class="placeholder">' + hint + "</span>" : "";
-    } else {
+    } else if (!active) {
       el.textContent = val;
-      if (active) el.insertAdjacentHTML("beforeend", '<span class="caret"></span>');
+    } else {
+      const i = caretPos === null ? val.length
+                                  : Math.max(0, Math.min(caretPos, val.length));
+      el.textContent = "";
+      el.appendChild(document.createTextNode(val.slice(0, i)));
+      el.insertAdjacentHTML("beforeend", '<span class="caret"></span>');
+      el.appendChild(document.createTextNode(val.slice(i)));
     }
-    if (active) {
+    if (active && !loupeOpen) {
       requestAnimationFrame(() =>
         el.scrollIntoView({ block: "nearest", behavior: "smooth" }));
     }
@@ -1284,6 +1324,17 @@ function renderDrop() {
 
 /* ---------- input ---------- */
 
+/* Where the caret sits inside the focused field. null means "at the end",
+   which is what typing into a fresh field should do. Text fields honour it;
+   number fields keep appending, since they hold three digits and the steppers
+   are the real way to change them. */
+let caretPos = null;
+
+function caretIndex() {
+  const v = valueOf(focusKey);
+  return caretPos === null ? v.length : Math.max(0, Math.min(caretPos, v.length));
+}
+
 function type(ch) {
   if (!focusKey) return;
   if (isNumeric(focusKey)) {
@@ -1298,9 +1349,14 @@ function type(ch) {
     // key, so without this everything lands lowercase. Email is left as typed.
     const cur = valueOf(focusKey);
     if (cur.length >= capFor(focusKey)) return;
+    const i = caretIndex();
+    // Capitalise from the character before the caret, not the end of the
+    // string, so inserting mid-word behaves the same as typing at the end.
+    const prev = cur.slice(0, i);
     const capitalise = focusKey !== "email" &&
-      (cur === "" || /[\s\-'.]$/.test(cur));
-    setValue(focusKey, cur + (capitalise ? ch.toUpperCase() : ch));
+      (prev === "" || /[\s\-'.]$/.test(prev));
+    setValue(focusKey, prev + (capitalise ? ch.toUpperCase() : ch) + cur.slice(i));
+    caretPos = i + 1;
   }
   dropIndex = -1;
   paint();
@@ -1309,7 +1365,11 @@ function type(ch) {
 function backspace() {
   if (!focusKey) return;
   replaceNext = false;
-  setValue(focusKey, valueOf(focusKey).slice(0, -1));
+  const v = valueOf(focusKey), i = caretIndex();
+  if (isNumeric(focusKey)) { setValue(focusKey, v.slice(0, -1)); paint(); return; }
+  if (i === 0) return;
+  setValue(focusKey, v.slice(0, i - 1) + v.slice(i));
+  caretPos = i - 1;
   paint();
 }
 
@@ -1317,8 +1377,133 @@ function clearField() {
   if (!focusKey) return;
   replaceNext = false;
   setValue(focusKey, isNumeric(focusKey) ? "0" : "");
+  caretPos = null;
   paint();
 }
+
+/* Which character boundary is nearest this x? Measured by walking the real
+   boundaries with a Range rather than asking for a caret position, because the
+   two browser APIs for that disagree and this needs no fallback. The field is
+   re-rendered without its caret first, since the caret is 5px wide and would
+   otherwise shift every boundary after it. */
+function indexFromPoint(el, x) {
+  const text = valueOf(el.dataset.key);
+  if (!text) return 0;
+  el.textContent = text;
+  const node = el.firstChild;
+  if (!node || node.nodeType !== 3) return text.length;
+  const r = document.createRange();
+  let best = 0, bestDx = Infinity;
+  for (let i = 0; i <= text.length; i++) {
+    r.setStart(node, i); r.setEnd(node, i);
+    const rect = r.getBoundingClientRect();
+    const dx = Math.abs(rect.left - x);
+    if (dx < bestDx) { bestDx = dx; best = i; }
+  }
+  return best;
+}
+
+/* How far into the text a caret index sits, measured from the first character
+   rather than from the edge of the field. Measuring from the edge would fold
+   the field's border and padding into the number, and the magnifier multiplies
+   whatever it is given by the zoom, so those 16px would arrive as 30. */
+function offsetOfIndex(el, i) {
+  const text = valueOf(el.dataset.key);
+  el.textContent = text;
+  const node = el.firstChild;
+  if (!node || node.nodeType !== 3) return 0;
+  const r = document.createRange();
+  r.setStart(node, 0); r.collapse(true);
+  const origin = r.getBoundingClientRect().left;
+  r.setStart(node, Math.max(0, Math.min(i, text.length))); r.collapse(true);
+  return r.getBoundingClientRect().left - origin;
+}
+
+/* The magnifier.
+
+   Press and hold on a field with text in it, or start dragging across one, and
+   a bubble rises above the finger showing that part of the line at 1.9x with
+   the caret through the middle. Slide and the caret follows, character by
+   character. Let go and it settles where you left it.
+
+   iOS gives this free to real <input> elements, along with the loupe. We can't
+   use one: an input summons the system keyboard, and suppressing that keyboard
+   is the reason this page has its own. So the behaviour is rebuilt here, and
+   the magnifier is drawn rather than borrowed. */
+const LOUPE_ZOOM = 1.9, LOUPE_HOLD = 300, LOUPE_SLOP = 8;
+let loupeField = null, loupeOpen = false, loupeTimer = null, loupeStartX = 0;
+
+function loupeEligible(el) {
+  return el && el.dataset && el.dataset.key !== undefined &&
+         !isNumeric(el.dataset.key) && valueOf(el.dataset.key).length > 0;
+}
+
+function openLoupe(el, x) {
+  loupeOpen = true;
+  focusKey = el.dataset.key;
+  const lo = document.getElementById("loupe");
+  // Copy the field's typography property by property. The `font` shorthand
+  // leaves out letter-spacing and resets the caps variant, and both of those
+  // change where each character sits, which is what the offset depends on.
+  const cs = getComputedStyle(el);
+  const z = lo.querySelector(".lz");
+  ["fontFamily", "fontSize", "fontWeight", "fontStyle",
+   "fontVariantCaps", "letterSpacing", "textTransform"].forEach(k => {
+    z.style[k] = cs[k];
+  });
+  lo.classList.add("show");
+  trackLoupe(el, x);
+}
+
+function trackLoupe(el, x) {
+  const lo = document.getElementById("loupe");
+  const i = indexFromPoint(el, x);
+  const off = offsetOfIndex(el, i);          // both rewrite the field; paint restores it
+  caretPos = i;
+  paint();
+
+  const z = lo.querySelector(".lz");
+  z.textContent = valueOf(el.dataset.key);
+  // clientLeft is the loupe's own border, which the text already sits inside.
+  const w = lo.offsetWidth;
+  const x0 = w / 2 - lo.clientLeft - off * LOUPE_ZOOM;
+  z.style.transform = "translateX(" + x0 + "px) scale(" + LOUPE_ZOOM + ")";
+
+  // Above the field by preference, below it when the field is near the top of
+  // the screen, so it never ends up behind the masthead.
+  const fr = el.getBoundingClientRect();
+  const h = lo.offsetHeight;
+  const above = fr.top - h - 12;
+  const left = Math.max(6, Math.min(window.innerWidth - w - 6, x - w / 2));
+  lo.style.left = left + "px";
+  lo.style.top = (above >= 6 ? above : fr.bottom + 12) + "px";
+}
+
+function closeLoupe() {
+  clearTimeout(loupeTimer); loupeTimer = null;
+  loupeField = null; loupeOpen = false;
+  document.getElementById("loupe").classList.remove("show");
+}
+
+document.addEventListener("pointerdown", ev => {
+  const f = ev.target.closest ? ev.target.closest("[data-key]") : null;
+  if (!loupeEligible(f)) return;
+  loupeField = f; loupeStartX = ev.clientX;
+  loupeTimer = setTimeout(() => { if (loupeField) openLoupe(loupeField, loupeStartX); },
+                          LOUPE_HOLD);
+}, { capture: true, passive: true });
+
+document.addEventListener("pointermove", ev => {
+  if (!loupeField) return;
+  if (!loupeOpen && Math.abs(ev.clientX - loupeStartX) > LOUPE_SLOP) {
+    clearTimeout(loupeTimer);
+    openLoupe(loupeField, ev.clientX);
+  }
+  if (loupeOpen) { ev.preventDefault(); trackLoupe(loupeField, ev.clientX); }
+}, { capture: true, passive: false });
+
+["pointerup", "pointercancel"].forEach(t =>
+  document.addEventListener(t, closeLoupe, { capture: true, passive: true }));
 
 /* Tap away to dismiss.
 
@@ -1409,8 +1594,13 @@ document.body.addEventListener("click", ev => {
   }
   if (t.dataset.key !== undefined) {
     click("key");
+    const same = focusKey === t.dataset.key;
     focusKey = t.dataset.key;
     replaceNext = isNumeric(focusKey);
+    // Numbers keep appending. Text takes the caret to the tapped character,
+    // but only once the field already holds something worth aiming at.
+    caretPos = (isNumeric(focusKey) || !valueOf(focusKey))
+      ? null : indexFromPoint(t, ev.clientX);
     paint();
     return;
   }
