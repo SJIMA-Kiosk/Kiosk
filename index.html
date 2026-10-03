@@ -251,7 +251,11 @@
     min-height: 56px; padding: 0 .7rem;
     display: flex; align-items: center;
     font-size: 1.1rem; color: var(--ink);
-    overflow: hidden; white-space: nowrap;
+    /* pre, not nowrap: both keep the text on one line, but nowrap collapses a
+       space at the end of the value, so pressing space appeared to do nothing
+       until the next letter arrived. The magnifier already used pre, which is
+       why the space showed up there. */
+    overflow: hidden; white-space: pre;
     position: relative;
   }
   .field.num { justify-content: center; padding: 0 .2rem; min-height: 50px;
