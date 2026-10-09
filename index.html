@@ -1083,12 +1083,105 @@ function splitQuery(s) {
   return { head: p[0].trim(), tail: p.slice(1).join(" ").trim().toLowerCase() };
 }
 
-function regionBonus(r, tail) {
+/* Did they name the region themselves? "Grass Valley, California" and
+   "Grass Valley California" both count, so the words left over after the
+   row's own name are treated as a region the same way the part after a
+   comma is. Without this the only way to reach a far-off place would be to
+   remember the comma. */
+function tailFor(head, tail, name) {
+  const h = head.toLowerCase(), n = (name || "").toLowerCase();
+  if (h.length > n.length && h.startsWith(n)) {
+    return (tail + " " + h.slice(n.length)).trim();
+  }
+  return tail;
+}
+
+function regionHit(r, tail) {
   if (!tail) return 0;
   const reg = [r.admin1, r.country, r.countryName].filter(Boolean)
                 .join(" ").toLowerCase();
   if (!reg) return 0;
-  return tail.split(/[\s,]+/).some(w => w.length > 1 && reg.includes(w)) ? 0.15 : 0;
+  return tail.split(/[\s,]+/).some(w => w.length > 1 && reg.includes(w)) ? 1 : 0;
+}
+
+/* ---------- ordering ----------
+
+   The list is "the closest places that match what has been typed", which is
+   what a visitor to an island museum is nearly always after. Distance alone
+   would be useless and text alone gives absurdities: typing "grass valley"
+   once offered Grass Valley in South Africa above the California one, because
+   both are exact matches and the geocoder had its own idea of which mattered.
+
+   So rows are graded first, then sorted by distance INSIDE each grade:
+
+     4   typed the whole name
+     3   the name starts with what was typed, or the reverse
+     2   the name contains it, or the typed text is its initials (FH, MV)
+     <2  a misspelling, graded by how close it is in 0.05 steps
+
+   A grade is never traded away, so a nearby town can't outrank a place that
+   was actually named. Within a grade the rows are ordered by how likely a
+   visitor is to have come from each one, which is where population and
+   distance are weighed against each other — see weightOf. Naming the region
+   outranks everything, so "Grass Valley, California" goes straight there. */
+function grade(s) {
+  if (s >= 1.25) return 4;
+  if (s >= 0.92) return 3;
+  if (s >= 0.75) return 2;
+  return Math.round(s * 20) / 20;     // 0.05 steps, always below 2
+}
+
+/* A place with no coordinates — a bare country — has no distance. */
+const milesOf = r =>
+  r.latitude == null ? Infinity : milesFromFH(r.latitude, r.longitude);
+
+/* How likely is a visitor to have come from here?
+
+   Distance alone put Grass Valley, Oregon (164 people, 243 miles) above Grass
+   Valley, California (12,860 people, 650 miles), and popularity alone is what
+   put Grass Valley, South Africa above both. Neither is the question being
+   asked. The question is which of several same-named places the person at the
+   desk is most likely to have travelled from, and that depends on both: how
+   many people live there, and how far they would have had to come.
+
+   So each row gets a weight of population discounted by distance:
+
+     weight = population / (1 + miles/50) ^ 1.3
+
+   Halving the distance is worth about two and a half times the population.
+   The exponent was checked against the cases that actually come up rather
+   than picked for neatness, and anything from 1.0 to 2.0 orders all of them
+   the same way, so it is not balanced on a knife edge:
+
+     Grass Valley    CA 12,860 @ 650    beats OR 164 @ 243 and ZA @ 10,289
+     Paris           FR 2.1m @ 4,961    beats TX 24,782 @ 1,745 and ID 513 @ 711
+     London          UK 8.9m @ 4,749    beats ON 383,822 @ 2,024
+     Vancouver       BC 600,000 @ 49    beats WA 161,791 @ 200
+
+   The bundled towns carry no population, so they are weighed as a town of
+   5,000 until the geocoder supplies a real number for the same place, which
+   mergeSuggest copies across. That is deliberately middling: enough that a
+   local town isn't buried by a far-off city, not so much that it pretends to
+   be one. */
+const POP_GUESS = 5000;   // a bundled town with no figure of its own
+const POP_HALF  = 50;     // miles at which the discount starts biting
+const POP_FALL  = 1.3;
+
+function weightOf(r) {
+  const d = milesOf(r);
+  if (d === Infinity) return 0;          // a country, not a place to travel from
+  const pop = r.population || POP_GUESS;
+  return pop / Math.pow(1 + d / POP_HALF, POP_FALL);
+}
+
+function rank(a, b) {
+  if (a._rb !== b._rb) return b._rb - a._rb;
+  const ga = grade(a._s), gb = grade(b._s);
+  if (ga !== gb) return gb - ga;
+  const wa = weightOf(a), wb = weightOf(b);
+  if (wa !== wb) return wb - wa;
+  if (a._local !== b._local) return a._local ? -1 : 1;
+  return b._s - a._s;
 }
 
 const rowKey = r => [r.name, r.admin1 || r.country].join("|").toLowerCase();
@@ -1098,7 +1191,7 @@ const rowKey = r => [r.name, r.admin1 || r.country].join("|").toLowerCase();
    spell. Built once at load, since it never changes. */
 function townRow(t) {
   return { name: t[0], latitude: t[1], longitude: t[2],
-           admin1: t[3], country: t[4], _local: true, _s: 0 };
+           admin1: t[3], country: t[4], _local: true, _s: 0, _rb: 0 };
 }
 
 /* Every bundled town that has coordinates, nearest first. */
@@ -1137,18 +1230,20 @@ function localSuggest(input) {
   for (const t of PLACES.towns) {
     const r = { name: t[0], latitude: t[1], longitude: t[2],
                 admin1: t[3], country: t[4], _local: true };
-    r._s = score(head, t[0]) + regionBonus(r, tail);
-    if (r._s >= 0.5) out.push(r);
+    r._s = score(head, t[0]);
+    r._rb = regionHit(r, tailFor(head, tail, t[0]));
+    if (r._s + 0.15 * r._rb >= 0.5) out.push(r);
   }
   for (const [display, aliases] of PLACES.countries) {
     let best = 0;
     for (const a of aliases) best = Math.max(best, score(head, a));
     if (best >= 0.5) {
       out.push({ name: display, admin1: "", country: "", countryName: display,
-                 latitude: null, longitude: null, _local: true, _s: best });
+                 latitude: null, longitude: null, _local: true,
+                 _s: best, _rb: 0 });
     }
   }
-  return out.sort((a, b) => b._s - a._s).slice(0, 8);
+  return out.sort(rank).slice(0, 8);
 }
 
 /* ONLINE: everywhere else, via Open-Meteo. Queried every time rather than
@@ -1179,43 +1274,40 @@ async function onlineSuggest(input, signal) {
     r._local = false;
     r.countryName = r.country;
     r.country = r.country_code || r.country;
-    r._s = score(head, r.name) + regionBonus(r, tail);
+    r._s = score(head, r.name);
+    r._rb = regionHit(r, tailFor(head, tail, r.name));
     return r;
-  }).filter(r => r._s >= 0.34).sort((a, b) => b._s - a._s).slice(0, 8);
+  }).filter(r => r._s + 0.15 * r._rb >= 0.34).sort(rank).slice(0, 8);
 }
 
 /* Merge.
 
    The list paints from local data immediately, then repaints when the
-   geocoder answers ~300ms later. If that repaint reorders things, the row
-   someone is reaching for moves out from under their finger. Two rules
-   prevent it:
+   geocoder answers ~300ms later. Both halves are put through the same
+   ranking, so the repaint only ever inserts rows the ranking says are
+   nearer or better matched; it cannot reshuffle on a whim.
 
-   1. A local match beats an online match of equal textual quality by a clear
-      margin, not a hair. Visitors come from Washington, BC and the larger US
-      cities far more often than from their foreign namesakes, and those are
-      what the local list holds. A better online match still wins:
-      "Chengdu" beats "Cheney" because an exact match outscores a fuzzy one
-      by more than the bonus.
-
-   2. Local rows already on screen stay on screen. A better online match can
-      push them down, never off. */
-const LOCAL_BONUS = 0.15;   // clear margin over an online tie
-const PIN_MIN     = 0.8;    // only pin local rows that actually match
-const KEEP_LOCAL  = 4;
-const LIST_MAX    = 8;
+   Local rows that genuinely match claim their slots first, so a flood of
+   online results can't push them off the list. A weak fuzzy local match is
+   not pinned, which is why "Chengdu" isn't crowded out by "Cheney". Pinning
+   guarantees presence, not position: the ranking has the final say. */
+const PIN_MIN    = 0.8;    // only pin local rows that actually match
+const KEEP_LOCAL = 4;
+const LIST_MAX   = 8;
 
 function mergeSuggest(local, online) {
-  const w = r => r._s + (r._local ? LOCAL_BONUS : 0);
-  const d = r => (r.latitude == null ? 1e7 : milesFromFH(r.latitude, r.longitude));
-  const cmp = (a, b) =>
-    Math.abs(w(a) - w(b)) < 0.001 ? d(a) - d(b) : w(b) - w(a);
-
-  // Strong local matches claim slots first, so a flood of online results can't
-  // push them off. Weak fuzzy matches aren't pinned, which is why "Chengdu"
-  // isn't crowded out by "Cheney".
   const pinned = local.filter(r => r._s >= PIN_MIN).slice(0, KEEP_LOCAL);
   const claimed = new Set(pinned.map(rowKey));
+
+  // The bundled list has no population figures. Where the geocoder returned
+  // the same place, borrow its number before the duplicate is dropped, so a
+  // bundled Paris, Texas is weighed as 24,782 people rather than as a guess.
+  const byKey = new Map();
+  local.forEach(r => byKey.set(rowKey(r), r));
+  online.forEach(r => {
+    const m = byKey.get(rowKey(r));
+    if (m && !m.population && r.population) m.population = r.population;
+  });
 
   const rest = [];
   local.concat(online).forEach(r => {
@@ -1225,9 +1317,7 @@ function mergeSuggest(local, online) {
     rest.push(r);
   });
 
-  // Pinning guarantees presence, not position; the final sort can still put a
-  // better online match above a pinned local one.
-  return pinned.concat(rest.sort(cmp)).slice(0, LIST_MAX).sort(cmp);
+  return pinned.concat(rest.sort(rank)).slice(0, LIST_MAX).sort(rank);
 }
 
 /* ---------- dropdown, anchored under the focused field ----------
@@ -1260,7 +1350,7 @@ function withFallback(rows, query) {
   const q = query.trim();
   if (!q || rows.length) return rows;
   return [{ name: q, admin1: "", country: "", latitude: null, longitude: null,
-            _local: true, _s: 0, _literal: true }];
+            _local: true, _s: 0, _rb: 0, _literal: true }];
 }
 
 function paintDrop(rows, pending) {
